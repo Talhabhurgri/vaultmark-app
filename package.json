@@ -1,0 +1,21 @@
+{
+  "name": "vaultmark",
+  "version": "1.0.0",
+  "description": "Steam portfolio appraiser — game library + CS2/Dota2/TF2/Rust/Community inventory valuation",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^1.0.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^8.6.2",
+    "helmet": "^8.3.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8"
+  }
+}

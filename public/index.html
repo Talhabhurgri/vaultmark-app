@@ -1,0 +1,1549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VAULTMARK — Steam portfolio appraiser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root { --bg:#0B0F15; --panel:#121722; --panel2:#171E2B; --line:#212B3C; --text:#E7EDF5; --mut:#8894A8; --dim:#76849B; --acc:#63B0E3; }
+* { box-sizing:border-box; }
+body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sans-serif; font-size:15px; line-height:1.5; }
+.mono { font-family:'JetBrains Mono',ui-monospace,monospace; }
+button { cursor:pointer; font:inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
+
+.top { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px 16px; padding:18px 28px; border-bottom:1px solid var(--line); }
+.wordmark { font-family:'Chakra Petch',sans-serif; font-weight:700; letter-spacing:.14em; font-size:17px; }
+.wordmark span { color:var(--acc); }
+.top-right { display:flex; align-items:center; gap:10px; }
+.curlabel { color:var(--dim); font-size:12px; text-transform:uppercase; letter-spacing:.1em; }
+select { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 10px; }
+
+.hero { max-width:860px; margin:0 auto; padding:56px 24px 28px; text-align:center; }
+.hero h1 { font-family:'Chakra Petch',sans-serif; font-weight:700; font-size:clamp(30px,5vw,46px); margin:0 0 10px; }
+.sub { color:var(--mut); margin:0 0 26px; }
+.inputrow { display:flex; gap:10px; }
+.inputrow input { flex:1; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; color:var(--text); font-family:'JetBrains Mono',monospace; font-size:13.5px; min-width:0; }
+.inputrow input::placeholder { color:var(--dim); }
+.mainbtn { background:var(--acc); color:#0A121B; border:none; border-radius:12px; padding:14px 24px; font-family:'Chakra Petch',sans-serif; font-weight:700; letter-spacing:.05em; transition:filter .15s; }
+.mainbtn:hover { filter:brightness(1.12); }
+.mainbtn:disabled { filter:saturate(.3) brightness(.7); cursor:default; }
+.parsehint { margin-top:10px; font-size:12.5px; color:var(--acc); text-align:left; min-height:18px; }
+.parsehint.bad { color:#E06C6C; }
+.steps { margin-top:18px; text-align:left; font-size:12.5px; color:var(--mut); }
+.step { padding:2px 0; animation:fadein .3s; }
+.step.err { color:#E06C6C; }
+@keyframes fadein { from { opacity:0; transform:translateY(3px);} to { opacity:1; transform:none;} }
+.keywarn { margin:14px auto 0; max-width:640px; background:#241A12; border:1px solid #4A341F; color:#D9A05B; border-radius:10px; padding:10px 16px; font-size:13px; display:none; }
+
+.lbwrap { max-width:640px; margin:0 auto 8px; }
+.lbrow { display:flex; align-items:center; gap:10px; padding:6px 4px; border-bottom:1px solid var(--line); font-size:13px; }
+.lbrow:last-child { border-bottom:none; }
+.lbrank { width:20px; color:var(--dim); font-family:'JetBrains Mono',monospace; text-align:right; flex:none; }
+.lbavatar { width:22px; height:22px; border-radius:6px; flex:none; background:var(--panel2); object-fit:cover; }
+.lbname { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lbval { font-family:'JetBrains Mono',monospace; color:var(--acc); }
+.lbempty { color:var(--dim); font-size:13px; text-align:center; padding:8px 0; }
+
+.results { max-width:1060px; margin:0 auto; padding:8px 24px 40px; display:none; flex-direction:column; gap:18px; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px 22px; }
+.panel-head { display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:14px; flex-wrap:wrap; }
+.panel h2 { font-family:'Chakra Petch',sans-serif; font-size:15px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; margin:0; color:var(--mut); }
+.fine { color:var(--dim); font-size:12.5px; margin:10px 0 0; }
+
+.summary { display:grid; grid-template-columns:1.4fr 1.2fr 1fr 1fr auto; gap:18px; align-items:center; }
+.summary .liqline { grid-column:1 / -1; }
+.sum-id { display:flex; gap:12px; align-items:center; min-width:0; }
+.avatar { width:46px; height:46px; border-radius:10px; flex:none; border:1px solid var(--line); object-fit:cover; background:var(--panel2); }
+.persona { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sid { color:var(--dim); font-size:11.5px; }
+.repline { color:var(--dim); font-size:11.5px; margin-top:2px; }
+.repline b { color:var(--mut); font-weight:500; }
+.banwarn { background:#2A1414; border:1px solid #5C2323; color:#F0A0A0; border-radius:12px; padding:14px 18px; font-size:13.5px; display:none; }
+.banwarn b { color:#FF8A8A; }
+.sum-num label { display:block; color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.1em; margin-bottom:2px; }
+.sum-num span { font-size:19px; }
+.sum-num.total span { font-size:26px; color:var(--acc); }
+.cachecell { display:flex; flex-direction:column; gap:6px; align-items:flex-end; font-size:11.5px; color:var(--dim); }
+.ghostbtn { background:none; border:1px solid var(--line); color:var(--mut); border-radius:8px; padding:5px 12px; font-size:12.5px; transition:border-color .15s,color .15s; }
+.ghostbtn:hover { border-color:var(--acc); color:var(--acc); }
+
+.spectrum-bar { display:flex; gap:3px; height:26px; border-radius:7px; overflow:hidden; }
+.seg { border:none; padding:0; transition:opacity .15s, transform .12s; min-width:8px; }
+.seg:hover { transform:scaleY(1.12); }
+.seg.dimmed { opacity:.22; }
+.spectrum-legend { display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:12px; }
+.leg { display:flex; align-items:center; gap:7px; background:none; border:none; color:var(--mut); font-size:12.5px; padding:2px 0; }
+.leg i { width:9px; height:9px; border-radius:3px; display:inline-block; }
+.leg b { color:var(--text); font-weight:500; font-family:'JetBrains Mono',monospace; font-size:12px; }
+.leg.dimmed { opacity:.35; }
+.leg.clear { color:var(--acc); }
+
+.tabs-head { align-items:center; }
+.tabs { display:flex; gap:6px; flex-wrap:wrap; }
+.tab { background:var(--panel2); border:1px solid var(--line); color:var(--mut); border-radius:10px; padding:8px 14px; display:flex; gap:9px; align-items:baseline; font-weight:500; transition:border-color .15s,color .15s; }
+.tab.on { border-color:var(--acc); color:var(--text); }
+.tabval { font-size:11.5px; color:var(--dim); font-family:'JetBrains Mono',monospace; }
+.tab.on .tabval { color:var(--acc); }
+
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(228px,1fr)); gap:12px; }
+.card { background:var(--panel2); border:1px solid var(--line); border-top:2px solid var(--rar,#B0C3D9); border-radius:12px; overflow:hidden; display:flex; flex-direction:column; transition:transform .12s; }
+.card:hover { transform:translateY(-2px); }
+.card-art { background:#0D121B; display:flex; align-items:center; justify-content:center; height:110px; position:relative; }
+.card-art img { max-height:96px; max-width:90%; }
+.qty { position:absolute; right:8px; bottom:6px; font-size:11px; color:var(--mut); background:#0B0F15CC; border-radius:6px; padding:1px 7px; }
+.card-body { padding:12px 14px 14px; display:flex; flex-direction:column; gap:9px; flex:1; }
+.card-name { font-size:13.5px; font-weight:600; line-height:1.35; word-break:break-word; }
+.card-meta { display:flex; gap:6px; flex-wrap:wrap; }
+.pill { font-size:10.5px; letter-spacing:.04em; border:1px solid var(--line); border-radius:99px; padding:2px 8px; color:var(--mut); }
+.card-prices { margin-top:auto; display:flex; gap:16px; align-items:flex-end; }
+.card-prices label { display:block; font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--dim); }
+.price { font-size:15px; font-family:'JetBrains Mono',monospace; }
+.price.sug { color:var(--dim); font-size:12.5px; }
+.unpriced { color:var(--dim); font-size:11.5px; }
+.selllink { margin-left:auto; font-size:11px; color:var(--dim); text-decoration:none; border:1px solid var(--line); border-radius:7px; padding:3px 9px; align-self:center; transition:border-color .15s,color .15s; }
+.selllink:hover { border-color:var(--acc); color:var(--acc); }
+.liqpill { font-size:9.5px; }
+.liqpill.liquid { color:#7BC97F; border-color:#7BC97F55; }
+.liqpill.thin { color:#D9A05B; border-color:#D9A05B55; }
+.liqpill.illiquid { color:#E06C6C; border-color:#E06C6C55; }
+.liqsummary { display:flex; gap:14px; flex-wrap:wrap; margin-top:8px; font-size:12.5px; color:var(--mut); }
+.liqsummary b { font-family:'JetBrains Mono',monospace; }
+.liqsummary .liquid b { color:#7BC97F; }
+.liqsummary .thin b { color:#D9A05B; }
+.liqsummary .illiquid b { color:#E06C6C; }
+.cashout { color:var(--mut); font-size:12.5px; }
+.cashout b { font-family:'JetBrains Mono',monospace; color:#E06C6C; }
+.cashout .net { color:var(--acc); font-weight:600; }
+
+.dealcat { margin-bottom:18px; }
+.dealcat:last-child { margin-bottom:0; }
+.dealcat-head { display:flex; align-items:baseline; gap:8px; margin-bottom:10px; }
+.dealcat-head h3 { font-family:'Chakra Petch',sans-serif; font-size:13px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--text); margin:0; }
+.dealcat-head span { color:var(--dim); font-size:11.5px; }
+.dealsgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:12px; }
+.dealcard { background:var(--panel2); border:1px solid var(--line); border-radius:12px; overflow:hidden; display:flex; flex-direction:column; text-decoration:none; color:inherit; transition:transform .12s,border-color .15s; }
+.dealcard:hover { transform:translateY(-2px); border-color:var(--acc); }
+.dealcard img { width:100%; height:78px; object-fit:cover; background:#0D121B; }
+.deal-body { padding:10px 12px 12px; display:flex; flex-direction:column; gap:6px; }
+.deal-title { font-size:13px; font-weight:600; line-height:1.3; }
+.deal-prices { display:flex; align-items:baseline; gap:8px; }
+.deal-sale { font-family:'JetBrains Mono',monospace; font-size:15px; color:var(--acc); }
+.deal-normal { font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--dim); text-decoration:line-through; }
+.deal-save { font-size:10.5px; color:#7BC97F; font-family:'JetBrains Mono',monospace; }
+.deal-rating { font-size:10.5px; color:var(--mut); }
+
+.quicknav { position:sticky; top:0; z-index:5; display:flex; gap:8px; flex-wrap:wrap; padding:10px 0; margin:-8px 0 4px; background:var(--bg); border-bottom:1px solid var(--line); }
+.quicknav button { background:var(--panel2); border:1px solid var(--line); color:var(--mut); border-radius:999px; padding:6px 14px; font-size:12.5px; font-weight:500; white-space:nowrap; transition:border-color .15s,color .15s; }
+.quicknav button:hover { border-color:var(--acc); color:var(--acc); }
+
+.notice { background:var(--panel2); border:1px dashed var(--line); border-radius:12px; padding:18px 20px; color:var(--mut); }
+.notice b { color:var(--text); }
+.notice p { margin:6px 0 0; font-size:13.5px; }
+
+.gamelist { display:flex; flex-direction:column; max-height:420px; overflow-y:auto; }
+.gamerow { display:flex; gap:14px; align-items:center; padding:7px 2px; border-bottom:1px solid var(--line); }
+.gamerow:last-child { border-bottom:none; }
+.gicon { width:24px; height:24px; border-radius:5px; background:var(--panel2); flex:none; }
+.gname { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ghours { color:var(--dim); font-size:12px; font-family:'JetBrains Mono',monospace; }
+.gdeal { color:#7BC97F; font-size:12px; font-family:'JetBrains Mono',monospace; white-space:nowrap; }
+.gprice { width:90px; text-align:right; font-size:13.5px; font-family:'JetBrains Mono',monospace; }
+.gprice.free { color:var(--dim); }
+.gprice.onsale { color:var(--dim); text-decoration:line-through; }
+.salesum { color:#7BC97F; }
+
+.share-canvas { width:100%; border-radius:12px; border:1px solid var(--line); display:block; }
+.foot { text-align:center; color:var(--dim); font-size:11.5px; padding:18px 0 30px; font-family:'JetBrains Mono',monospace; }
+
+.badgerow { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:14px; padding-top:14px; border-top:1px dashed var(--line); }
+.badgerow img { flex:none; }
+.badgesnippet { flex:1; min-width:220px; background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:11.5px; color:var(--mut); overflow-x:auto; white-space:nowrap; }
+.lbopt { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--mut); margin-top:10px; }
+.lbopt input { accent-color:var(--acc); }
+.lbstatus { font-size:12px; color:var(--acc); }
+
+@media (max-width:760px) {
+  .summary { grid-template-columns:1fr 1fr; }
+  .sum-id { grid-column:1 / -1; }
+  .cachecell { align-items:flex-start; grid-column:1 / -1; flex-direction:row; }
+  .inputrow { flex-direction:column; }
+  .mainbtn { width:100%; }
+  /* wrapping to 2-3 lines while sticky-pinned would eat too much screen —
+     scroll horizontally instead, one compact row always. */
+  .quicknav { flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .quicknav button { flex:none; }
+}
+
+@media (max-width:520px) {
+  .top { padding:14px 16px; gap:8px; }
+  .wordmark { font-size:15px; }
+  .top-right { gap:6px; }
+  .curlabel { display:none; }               /* still announced via <label for>, just not shown */
+  select { padding:6px 7px; font-size:12.5px; }
+}
+
+.guidelink { background:none; border:1px solid var(--line); color:var(--mut); border-radius:8px; padding:7px 12px; font-size:12.5px; transition:border-color .15s,color .15s; }
+.guidelink:hover { border-color:var(--acc); color:var(--acc); }
+
+.guidewrap { max-width:860px; margin:0 auto 8px; padding:0 24px; display:none; }
+.guidewrap h3 { font-family:'Chakra Petch',sans-serif; font-size:14px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--text); margin:22px 0 10px; }
+.guidewrap h3:first-child { margin-top:4px; }
+.guidewrap p, .guidewrap li { color:var(--mut); font-size:13.5px; line-height:1.6; }
+.guidewrap ul, .guidewrap ol { margin:6px 0; padding-left:20px; }
+.guidewrap b { color:var(--text); }
+
+.faqitem { border-bottom:1px solid var(--line); padding:10px 0; }
+.faqitem:last-child { border-bottom:none; }
+.faqitem summary { cursor:pointer; color:var(--text); font-weight:500; font-size:13.5px; list-style:none; display:flex; align-items:center; gap:8px; }
+.faqitem summary::-webkit-details-marker { display:none; }
+.faqitem summary::before { content:"+"; color:var(--acc); font-family:'JetBrains Mono',monospace; width:14px; flex:none; }
+.faqitem[open] summary::before { content:"−"; }
+.faqitem p { margin:8px 0 2px 22px; }
+
+.contactform { display:flex; flex-direction:column; gap:10px; margin-top:6px; }
+.contactform input, .contactform textarea { background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:10px 12px; color:var(--text); font-family:inherit; font-size:13.5px; resize:vertical; }
+.contactform input::placeholder, .contactform textarea::placeholder { color:var(--dim); }
+.placeholder-warn { background:#241A12; border:1px solid #4A341F; color:#D9A05B; border-radius:8px; padding:8px 12px; font-size:12px; margin-bottom:4px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wordmark">VAULT<span>MARK</span></div>
+  <div class="top-right">
+    <label class="curlabel" for="region">Store region</label>
+    <select id="region">
+      <option value="us" selected>US</option>
+      <option value="pk">PK</option>
+      <option value="in">IN</option>
+      <option value="br">BR</option>
+      <option value="ru">RU</option>
+      <option value="tr">TR</option>
+      <option value="cn">CN</option>
+      <option value="jp">JP</option>
+      <option value="kr">KR</option>
+      <option value="gb">GB</option>
+      <option value="de">DE</option>
+      <option value="pl">PL</option>
+      <option value="ua">UA</option>
+      <option value="mx">MX</option>
+      <option value="id">ID</option>
+      <option value="ph">PH</option>
+      <option value="th">TH</option>
+      <option value="vn">VN</option>
+      <option value="my">MY</option>
+      <option value="au">AU</option>
+      <option value="ca">CA</option>
+    </select>
+    <label class="curlabel" for="cur">Currency</label>
+    <select id="cur"><option>USD</option></select>
+    <button class="guidelink" id="guideToggle" aria-expanded="false">Guide & FAQ</button>
+  </div>
+</header>
+
+<section class="hero">
+  <h1>What's the vault worth?</h1>
+  <p class="sub">Paste a profile URL, vanity name, or any SteamID format. No login, nothing to install.</p>
+  <div class="inputrow">
+    <input id="q" placeholder="steamcommunity.com/id/gaben  ·  76561197960287930  ·  STEAM_0:0:11101" spellcheck="false" aria-label="Steam profile">
+    <button class="mainbtn" id="go">Appraise</button>
+  </div>
+  <div class="parsehint mono" id="hint"></div>
+  <div class="keywarn" id="keywarn">Server has no Steam API key yet — copy <b>.env.example</b> to <b>.env</b>, add your key, restart. Inventories work without a key, but vanity names, profiles and game libraries need one.</div>
+  <div class="steps mono" id="steps"></div>
+</section>
+
+<section class="guidewrap" id="guidePanel">
+  <div class="panel">
+    <h3>How it works</h3>
+    <ol>
+      <li>Paste a Steam profile URL, vanity name, SteamID64, or STEAM_/[U:1:…] format, and click Appraise. No login — this only reads what's already public on that profile.</li>
+      <li>The server resolves the SteamID, then pulls the profile, owned games, and inventories for CS2, Dota 2, TF2, Rust and Steam Community items (cards, backgrounds, gems) via Steam's own APIs.</li>
+      <li>Items are priced from Skinport first, then a Steam Community Market fallback for anything Skinport doesn't carry. Games are priced from the Steam store in your detected region, sale-aware.</li>
+      <li>Everything's cached (30 min for inventories, longer for prices) so repeat visits are fast and Steam's rate limits stay respected.</li>
+    </ol>
+
+    <h3>Guidelines</h3>
+    <ul>
+      <li>Every number here is a <b>market estimate</b>, not a guarantee of what you'd actually receive — prices move, and marketplace fees apply when you actually sell (see the "cost to cash out" line on your results).</li>
+      <li>This tool prices and links to <b>individual tradeable items</b> through real marketplaces (Skinport, Steam Community Market) — the same as any legitimate skin trade.</li>
+      <li>It does <b>not</b> help sell or transfer whole Steam accounts. That violates Steam's Subscriber Agreement and is a well-known scam vector (sellers commonly reclaim accounts via original recovery access after "selling" them) — this app appraises accounts, it doesn't facilitate moving them.</li>
+      <li>A ban warning, when shown, means Valve's own data says trading on that account is very likely restricted — treat the total as informational only in that case.</li>
+    </ul>
+
+    <h3>FAQ</h3>
+    <details class="faqitem"><summary>Why did my total change between two appraisals?</summary><p>Usually price volatility, not a bug — Skinport refreshes its feed every few minutes, and low-supply items (think rare knife patterns) can swing a lot on one new listing. Steam Market prices are cached longer and move less often.</p></details>
+    <details class="faqitem"><summary>What do "liquid", "thin market" and "illiquid" mean?</summary><p>How easily that specific item could actually sell right now — based on real Skinport listing counts or Steam Market 24h trade volume, not just its price. Liquid = plenty of supply/demand; illiquid = priced fairly, but there may only be one other listing to compete with.</p></details>
+    <details class="faqitem"><summary>Why do some items show "not marketable" or "no current listings"?</summary><p>"Not marketable" means Steam itself blocks that item from being traded (common for promo/Twitch-drop items). "No current listings" means it's tradeable but neither Skinport nor Steam Market currently has a real price for it — it counts as $0 rather than a guessed number.</p></details>
+    <details class="faqitem"><summary>What's a "trade hold"?</summary><p>A temporary restriction (shown with the date it lifts) — common right after receiving a fresh item, e.g. a new Rust drop. Different from "not marketable," which is permanent.</p></details>
+    <details class="faqitem"><summary>The game price doesn't match what I see on Steam — why?</summary><p>Steam prices the same game very differently by country (Rust is $39.99 in the US store, $18.99 in Pakistan's, ₹1,799 in India's). The <b>store region</b> selector at the top guesses your region from your browser automatically, but you can override it manually if the guess is off.</p></details>
+    <details class="faqitem"><summary>What's the difference between "Store region" and "Currency"?</summary><p>They do different jobs. <b>Store region</b> changes which country's Steam store your game library is actually priced against — Rust genuinely costs a different real dollar amount in the US store vs. Pakistan's, before any conversion. <b>Currency</b> is a pure display layer on top of that: it converts whatever number is already computed into EUR, PKR, etc. using live exchange rates. Switching currency to EUR doesn't make the site think you're shopping the German Steam store — only the region selector does that.</p></details>
+    <details class="faqitem"><summary>Why aren't my Rust DLC packs (Instruments, Sunburn, etc.) counted?</summary><p>DLC is an account entitlement, not an inventory item — there's no public API for checking whether another account owns a piece of DLC, so it's honestly left out rather than guessed at.</p></details>
+    <details class="faqitem"><summary>Do you store my Steam password or login?</summary><p>No — nothing here ever asks for or touches your Steam credentials. Everything is read from Steam's own public APIs and endpoints, the same data anyone could look up about a public profile.</p></details>
+    <details class="faqitem"><summary>Can I be removed from the public leaderboard?</summary><p>The leaderboard is opt-in per appraisal (unchecked by default) — but once posted, there's currently no self-serve way to remove it. Use the contact form below and it'll be handled manually.</p></details>
+    <details class="faqitem"><summary>How do I share my appraisal so it shows a preview card on Discord/Twitter?</summary><p>Use the <b>"Copy link"</b> button in the Share Card section — it copies a <code>/share/&lt;steamid&gt;</code> link, not the plain site URL. That specific link is what carries the image/title data Discord and Twitter read to build a preview card; the regular homepage link won't show one. This only works once the site is live on a real public domain — a <code>localhost</code> link can't generate a preview because external services like Discord have no way to reach your own computer to fetch it.</p></details>
+
+    <h3>Still have a question?</h3>
+    <p class="placeholder-warn" id="contactPlaceholderWarn">⚠ Site owner: replace <code>CONTACT_EMAIL</code> in index.html with your real address before launch — messages currently go to a placeholder.</p>
+    <form class="contactform" id="contactForm">
+      <input type="text" id="cName" placeholder="Name (optional)">
+      <input type="email" id="cEmail" placeholder="Your email (so we can reply)">
+      <textarea id="cMessage" placeholder="Question, feedback, or a leaderboard removal request…" rows="4" required></textarea>
+      <button type="submit" class="mainbtn" style="align-self:flex-start">Send</button>
+    </form>
+    <p class="fine">Opens your email client with the message pre-filled — nothing is sent from this page directly, no data is stored.</p>
+  </div>
+</section>
+
+<section class="lbwrap" id="lbSection" style="display:none">
+  <div class="panel">
+    <div class="panel-head"><h2>🏆 Public leaderboard</h2><span class="fine" style="margin:0">opt-in only</span></div>
+    <div id="lbBody"></div>
+  </div>
+</section>
+
+<main class="results" id="results">
+  <nav class="quicknav" id="quicknav">
+    <button id="navSummary">Total</button>
+    <button id="navGames">Games</button>
+    <button id="navItems">Items</button>
+    <button id="navHistory" style="display:none">History</button>
+    <button id="navDeals" style="display:none">Deals</button>
+    <button id="navShare">Share card</button>
+    <button id="navReport">Report</button>
+  </nav>
+
+  <div class="banwarn" id="banWarn"></div>
+
+  <section class="panel summary" id="summaryPanel">
+    <div class="sum-id">
+      <img class="avatar" id="avatar" alt="">
+      <div style="min-width:0">
+        <div class="persona" id="persona"></div>
+        <div class="mono sid" id="sid"></div>
+        <div class="repline" id="repLine"></div>
+      </div>
+    </div>
+    <div class="sum-num total"><label>Total appraisal</label><span class="mono" id="vTotal">—</span></div>
+    <div class="sum-num"><label id="lGames">Game library</label><span class="mono" id="vGames">—</span></div>
+    <div class="sum-num"><label id="lItems">Items</label><span class="mono" id="vItems">—</span></div>
+    <div class="cachecell">
+      <span class="mono" id="fetchedAt"></span>
+      <button class="ghostbtn" id="refresh">Refresh</button>
+    </div>
+    <div class="liqline liqsummary" id="liqLine"></div>
+    <p class="liqline fine" id="liqLegend" style="display:none">
+      <span class="liqpill pill liquid" style="margin-right:4px">liquid</span>plenty of current listings/trades, should sell fast ·
+      <span class="liqpill pill thin" style="margin:0 4px">thin market</span>some, but limited — may take a while ·
+      <span class="liqpill pill illiquid" style="margin:0 4px">illiquid</span>very few — priced fairly, but a buyer may be hard to find soon
+    </p>
+    <p class="liqline cashout" id="cashoutLine" style="display:none"></p>
+  </section>
+
+  <section class="panel" id="gamesPanel">
+    <div class="panel-head"><h2>Game library</h2><span class="mono" id="gamesHeadVal"></span></div>
+    <div id="gamesBody"></div>
+    <p class="fine">Regular store prices in the selected store region (normalized to USD, refreshed every 6 h) — the total counts regular price so it stays comparable across sales; active discounts are shown per game. Free-to-play titles count as zero.</p>
+  </section>
+
+  <section class="panel" id="itemsPanel">
+    <div class="panel-head"><h2>Value by rarity</h2><span class="fine" style="margin:0">market prices · click a tier to filter</span></div>
+    <div class="spectrum-bar" id="specBar"></div>
+    <div class="spectrum-legend" id="specLegend"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head tabs-head">
+      <div class="tabs" id="tabs" role="tablist"></div>
+      <select id="sort" aria-label="Sort items">
+        <option value="price">Sort: price</option>
+        <option value="rarity">Sort: rarity</option>
+        <option value="name">Sort: name</option>
+      </select>
+    </div>
+    <div id="invBody"></div>
+    <p class="fine" id="invFine"></p>
+  </section>
+
+  <section class="panel" id="historyPanel" style="display:none">
+    <div class="panel-head"><h2>Value over time</h2><span class="fine" id="historyFine" style="margin:0"></span></div>
+    <div id="historyBody"></div>
+    <label class="lbopt"><input type="checkbox" id="lbOptIn"> Show this appraisal on the public leaderboard (persona name + avatar become visible to anyone who visits the leaderboard)</label>
+    <span class="lbstatus" id="lbStatus"></span>
+  </section>
+
+  <section class="panel" id="dealsPanel" style="display:none">
+    <div class="panel-head"><h2>On sale, not in your library</h2><span class="fine" style="margin:0">highly rated · not counted in your total</span></div>
+    <div id="dealsBody"></div>
+    <p class="fine">Deals aggregated via CheapShark, grouped by genre — filtered to 75%+ positive, 5,000+ ratings, games you don't already own. Prices are US-region Steam prices regardless of your selected store region above. Newly-added games may sit in "More" until their genre tag finishes loading.</p>
+  </section>
+
+  <section class="panel" id="sharePanel">
+    <div class="panel-head">
+      <h2>Share card</h2>
+      <button class="mainbtn" id="dl">Download PNG</button>
+    </div>
+    <canvas class="share-canvas" id="shareCanvas" aria-label="Shareable appraisal card preview"></canvas>
+    <p class="fine">1200×630 — sized for Discord, Reddit and Twitter link embeds.</p>
+    <div class="badgerow">
+      <code class="badgesnippet mono" id="shareLinkSnippet"></code>
+      <button class="ghostbtn" id="copyShareLink">Copy link</button>
+    </div>
+    <p class="fine" id="shareLinkFine">This link unfurls into a live card on Discord/Twitter/Slack — paste it, don't paste the raw appraise URL. Needs at least one appraisal saved (already done automatically).</p>
+    <div class="badgerow">
+      <img id="badgePreview" alt="VAULTMARK badge" width="1" height="1">
+      <code class="badgesnippet mono" id="badgeSnippet"></code>
+      <button class="ghostbtn" id="copyBadge">Copy</button>
+    </div>
+    <p class="fine">Embeddable badge — drop it in a forum signature or Discord profile. Updates automatically whenever this steamid is re-appraised.</p>
+  </section>
+
+  <section class="panel" id="reportPanel">
+    <div class="panel-head">
+      <h2>Appraisal report</h2>
+      <button class="mainbtn" id="dlPdf">Download PDF Report</button>
+    </div>
+    <p class="fine">A detailed, itemized document — every priced item, game library, ban status and liquidity notes — for trade partners or your own records. Amounts are always in USD regardless of the currency shown above, so every symbol renders correctly in the PDF.</p>
+  </section>
+</main>
+
+<footer class="foot">prices: skinport → steam market fallback (items) · steam store (games) · fx: open.er-api.com · inventories cached 30 min server-side</footer>
+
+<script src="/vendor/jspdf.umd.min.js"></script>
+<script src="/vendor/jspdf.plugin.autotable.min.js"></script>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const APPS = [
+  { appid: 730,    label: "CS2" },
+  { appid: 570,    label: "Dota 2" },
+  { appid: 440,    label: "TF2" },
+  { appid: 252490, label: "Rust" },
+  { appid: 753,    label: "Community" },
+];
+
+const state = {
+  steamid64: null,
+  profile: null,
+  games: null,
+  inventories: {},   // appid -> response
+  currency: "USD",
+  region: "us",
+  rates: { USD: 1 },
+  tab: 730,
+  rarityFilter: null,
+  sort: "price",
+  fetchedAt: null,
+  running: false,
+  lbPosted: false,
+  deals: null,
+};
+
+/* ---------- SteamID parsing (client-side, for the live hint only) ---------- */
+const B = 76561197960265728n;
+function parseSteamInput(raw) {
+  const s = (raw || "").trim();
+  if (!s) return null;
+  let m = s.match(/steamcommunity\.com\/profiles\/(\d{17})/i);
+  if (m) return { type: "steamid64", steamid64: m[1] };
+  m = s.match(/steamcommunity\.com\/id\/([A-Za-z0-9_-]{2,32})/i);
+  if (m) return { type: "vanity", vanity: m[1] };
+  if (/^\d{17}$/.test(s)) return { type: "steamid64", steamid64: s };
+  m = s.match(/^STEAM_[0-5]:([01]):(\d+)$/i);
+  if (m) return { type: "steam2", steamid64: (B + BigInt(m[2]) * 2n + BigInt(m[1])).toString() };
+  m = s.match(/^\[?U:1:(\d+)\]?$/i);
+  if (m) return { type: "steam3", steamid64: (B + BigInt(m[1])).toString() };
+  if (/^[A-Za-z0-9_-]{2,32}$/.test(s)) return { type: "vanity", vanity: s };
+  return { type: "invalid" };
+}
+
+/* ---------- helpers ---------- */
+const SYM = { USD:"$",EUR:"€",GBP:"£",CNY:"¥",RUB:"₽",BRL:"R$",TRY:"₺",PLN:"zł",JPY:"¥",KRW:"₩",AUD:"A$",CAD:"C$",SEK:"kr",NOK:"kr",UAH:"₴",INR:"₹",MXN:"MX$",IDR:"Rp",PHP:"₱",THB:"฿",VND:"₫",MYR:"RM" };
+function money(usd) {
+  const r = state.rates[state.currency] || 1;
+  const v = usd * r;
+  const digits = v >= 1000 ? 0 : 2;
+  return (SYM[state.currency] || state.currency + " ") + v.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+async function api(path) {
+  const res = await fetch(path);
+  const data = await res.json().catch(() => ({}));
+  return { httpOk: res.ok, httpStatus: res.status, ...data };
+}
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+function step(text, isErr) {
+  const n = el("div", "step" + (isErr ? " err" : ""), text);
+  $("steps").appendChild(n);
+}
+
+/* ---------- derived data ---------- */
+function allItems() {
+  const out = [];
+  for (const inv of Object.values(state.inventories))
+    if (inv.status === "ok") out.push(...inv.items);
+  return out;
+}
+function totals() {
+  const inv = allItems().reduce((a, i) => a + i.priceMarket * i.qty, 0);
+  const games = state.games?.status === "ok" ? state.games.games.reduce((a, g) => a + (g.price || 0), 0) : 0;
+  return { inv, games, total: inv + games };
+}
+function liquiditySummary() {
+  const out = { liquid: 0, thin: 0, illiquid: 0, unrated: 0 };
+  for (const it of allItems()) {
+    const v = it.priceMarket * it.qty;
+    if (!it.priced) continue;
+    const level = it.liquidity?.level || "unrated";
+    out[level] += v;
+  }
+  return out;
+}
+
+// Real current rates (verified, not guessed): Skinport dropped its standard
+// seller fee to 8% in mid-2025 (6% above ~$1000/item); Steam Community Market
+// takes 15% (5% Steam + 10% game publisher, standard across CS2/Dota2/Rust).
+// These are the cost of actually turning "priced" into "cash," which the raw
+// total doesn't show.
+const SELL_FEES = { skinport: 0.08, skinportHighValue: 0.06, highValueUsd: 1000, steam: 0.15 };
+function sellFeeRate(it) {
+  if (it.priceSource === "skinport") {
+    return it.priceMarket * it.qty > SELL_FEES.highValueUsd ? SELL_FEES.skinportHighValue : SELL_FEES.skinport;
+  }
+  if (it.priceSource === "steam") return SELL_FEES.steam;
+  return null;
+}
+function cashOutSummary() {
+  let gross = 0, fees = 0, unrated = 0;
+  for (const it of allItems()) {
+    if (!it.priced) continue;
+    const v = it.priceMarket * it.qty;
+    gross += v;
+    const rate = sellFeeRate(it);
+    if (rate != null) fees += v * rate;
+    else unrated += v;
+  }
+  return { gross, fees, net: gross - fees, unrated };
+}
+function rarityGroups() {
+  const acc = new Map(); // rarity name -> { color, value }
+  for (const it of allItems()) {
+    const cur = acc.get(it.rarity) || { color: it.rarityColor, value: 0 };
+    cur.value += it.priceMarket * it.qty;
+    acc.set(it.rarity, cur);
+  }
+  return [...acc.entries()]
+    .map(([name, v]) => ({ name, ...v }))
+    .filter((g) => g.value > 0)
+    .sort((a, b) => b.value - a.value);
+}
+
+/* ---------- appraisal flow ---------- */
+async function appraise(clearCacheFirst) {
+  if (state.running) return;
+  const parsed = parseSteamInput($("q").value);
+  if (!parsed || parsed.type === "invalid") return;
+
+  state.running = true;
+  $("go").disabled = true;
+  $("go").textContent = "Appraising…";
+  $("steps").innerHTML = "";
+  state.rarityFilter = null;
+  state.inventories = {};
+
+  try {
+    // 1. resolve
+    step("Resolving Steam ID…");
+    const r = await api("/api/resolve?input=" + encodeURIComponent($("q").value));
+    if (!r.steamid64) {
+      step(r.error === "no_api_key" ? "Vanity resolution needs the API key — see the note above." :
+           r.error === "vanity_not_found" ? "No Steam account with that vanity name." :
+           "Couldn't resolve that input (" + (r.error || r.httpStatus) + ").", true);
+      return;
+    }
+    state.steamid64 = r.steamid64;
+    step("SteamID64 " + r.steamid64);
+
+    if (clearCacheFirst) await api("/api/refresh/" + r.steamid64);
+
+    // 2. profile (best-effort; inventories work without it)
+    const prof = await api("/api/profile/" + r.steamid64);
+    state.profile = prof.persona ? prof : { steamid64: r.steamid64, persona: r.steamid64, avatar: null };
+    if (!prof.persona && prof.error === "no_api_key") step("Profile lookup skipped (no API key).");
+
+    // 2b. reputation — level/badges/bans, best-effort, doesn't block anything
+    state.reputation = await api("/api/reputation/" + r.steamid64);
+    if (state.reputation.vacBanned || state.reputation.communityBanned || (state.reputation.economyBan && state.reputation.economyBan !== "none"))
+      step("This account has a Steam ban on record — see warning below.", true);
+
+    // 3. games
+    step("Fetching game library + store prices…");
+    state.games = await api("/api/games/" + r.steamid64 + "?cc=" + state.region);
+    if (state.games.status === "ok") step(`${state.games.games.length} games found.`);
+    else if (state.games.status === "private") step("Game details are private on this profile.", true);
+    else if (state.games.error === "no_api_key") step("Game library skipped (no API key).");
+
+    // 3b. deals — games on sale, highly rated, not already owned
+    if (state.games.status === "ok") {
+      step("Checking for deals on games you don't own…");
+      const owned = state.games.games.map((g) => g.appid);
+      const dealsRes = await fetch("/api/deals/" + r.steamid64, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ owned }),
+      }).then((res) => res.json()).catch(() => ({ deals: [] }));
+      state.deals = dealsRes.deals || [];
+      step(`${state.deals.length} deal${state.deals.length === 1 ? "" : "s"} found.`);
+    } else {
+      state.deals = null;
+    }
+
+    // 4. inventories
+    for (const a of APPS) {
+      step(`Loading ${a.label} inventory…`);
+      const inv = await api(`/api/inventory/${r.steamid64}/${a.appid}`);
+      state.inventories[a.appid] = inv;
+      if (inv.status === "ok") step(`${a.label}: ${inv.count} items${inv.cachedMs ? " (cached " + Math.round(inv.cachedMs/60000) + " min ago)" : ""}`);
+      else if (inv.status === "private") step(`${a.label}: inventory is private.`, true);
+      else if (inv.status === "rate_limited") step(`${a.label}: Steam rate-limited the request — retry in a minute, the next attempt is cached.`, true);
+      else step(`${a.label}: fetch failed (${inv.httpStatus || inv.error || "?"}).`, true);
+    }
+
+    state.fetchedAt = new Date();
+    state.lbPosted = false;
+    $("lbOptIn").checked = false;
+    $("lbOptIn").disabled = false;
+    $("lbStatus").textContent = "";
+    renderAll();
+    $("results").style.display = "flex";
+    $("results").scrollIntoView({ behavior: "smooth", block: "start" });
+    await saveSnapshot(false);   // silent, private — powers this steamid's own history
+    await loadHistory();
+  } finally {
+    state.running = false;
+    $("go").disabled = false;
+    $("go").textContent = "Appraise";
+  }
+}
+
+/* ---------- snapshots, history, leaderboard, badge ---------- */
+async function saveSnapshot(makePublic) {
+  if (!state.steamid64) return;
+  const t = totals();
+  await fetch("/api/snapshot", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      steamid64: state.steamid64,
+      persona: state.profile?.persona || state.steamid64,
+      avatar: state.profile?.avatar || "",
+      total: t.total,
+      gamesValue: t.games,
+      itemsValue: t.inv,
+      makePublic: !!makePublic,
+    }),
+  }).catch(() => {});
+}
+
+async function loadHistory() {
+  if (!state.steamid64) return;
+  const r = await api("/api/history/" + state.steamid64);
+  renderHistory(r.history || []);
+}
+
+function sparklineSvg(points, w, h) {
+  if (points.length < 2) return "";
+  const vals = points.map((p) => p.total);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const range = max - min || 1;
+  const step = w / (points.length - 1);
+  const coords = points.map((p, i) => [i * step, h - ((p.total - min) / range) * (h - 6) - 3]);
+  const path = coords.map(([x, y], i) => (i === 0 ? "M" : "L") + x.toFixed(1) + "," + y.toFixed(1)).join(" ");
+  const [lx, ly] = coords[coords.length - 1];
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><path d="${path}" fill="none" stroke="#63B0E3" stroke-width="2"/><circle cx="${lx}" cy="${ly}" r="3" fill="#63B0E3"/></svg>`;
+}
+
+function renderHistory(history) {
+  const panel = $("historyPanel"), body = $("historyBody");
+  $("navHistory").style.display = history.length >= 2 ? "" : "none";
+  if (history.length < 2) { panel.style.display = history.length ? "" : "none"; body.innerHTML = ""; $("historyFine").textContent = ""; return; }
+  panel.style.display = "";
+  const first = history[0], last = history[history.length - 1];
+  const change = last.total - first.total;
+  const pct = first.total > 0 ? (change / first.total) * 100 : 0;
+  body.innerHTML = "";
+  const row = el("div");
+  row.style.display = "flex"; row.style.alignItems = "center"; row.style.gap = "16px";
+  const spark = el("div"); spark.innerHTML = sparklineSvg(history, 220, 40);
+  row.appendChild(spark);
+  const summary = el("div", "mono");
+  summary.style.fontSize = "14px";
+  const sign = change >= 0 ? "+" : "";
+  summary.appendChild(el("span", null, money(first.total) + " → " + money(last.total) + "  "));
+  const chg = el("span", null, `(${sign}${money(change)}, ${sign}${pct.toFixed(1)}%)`);
+  chg.style.color = change >= 0 ? "#7BC97F" : "#E06C6C";
+  summary.appendChild(chg);
+  row.appendChild(summary);
+  body.appendChild(row);
+  $("historyFine").textContent = history.length + " appraisals since " + new Date(first.at).toLocaleDateString();
+}
+
+async function loadLeaderboard() {
+  const r = await api("/api/leaderboard");
+  const rows = r.leaderboard || [];
+  const section = $("lbSection"), body = $("lbBody");
+  if (!rows.length) { section.style.display = "none"; return; }
+  section.style.display = "";
+  body.innerHTML = "";
+  rows.forEach((row, i) => {
+    const r = el("div", "lbrow");
+    r.appendChild(el("span", "lbrank", String(i + 1)));
+    const av = document.createElement("img");
+    av.className = "lbavatar"; av.alt = ""; av.loading = "lazy";
+    if (row.avatar) av.src = row.avatar;
+    r.appendChild(av);
+    r.appendChild(el("span", "lbname", row.persona || row.steamid64));
+    r.appendChild(el("span", "lbval mono", "$" + row.total.toLocaleString("en-US", { maximumFractionDigits: 0 })));
+    body.appendChild(r);
+  });
+}
+
+function renderBadge() {
+  if (!state.steamid64) return;
+  const url = location.origin + "/api/badge/" + state.steamid64 + ".svg";
+  $("badgePreview").src = url;
+  $("badgePreview").removeAttribute("width");
+  $("badgePreview").removeAttribute("height");
+  $("badgeSnippet").textContent = `[![VAULTMARK](${url})](${location.origin}/?q=${state.steamid64})`;
+  $("shareLinkSnippet").textContent = location.origin + "/share/" + state.steamid64;
+}
+
+/* ---------- rendering ---------- */
+function renderAll() {
+  renderSummary();
+  renderSpectrum();
+  renderTabs();
+  renderInventory();
+  renderGames();
+  renderDeals();
+  drawShareCard();
+  renderBadge();
+  renderReputation();
+}
+
+function renderReputation() {
+  const rep = state.reputation;
+  const repLine = $("repLine");
+  const banWarn = $("banWarn");
+  if (!rep || rep.error) { repLine.textContent = ""; banWarn.style.display = "none"; return; }
+
+  const parts = [];
+  if (rep.level != null) parts.push(`Level ${rep.level}`);
+  if (rep.badgeCount != null) parts.push(`${rep.badgeCount} badges`);
+  const created = state.profile?.accountCreated;
+  if (created) {
+    const years = (Date.now() - created) / (365.25 * 24 * 3600 * 1000);
+    parts.push(years >= 1 ? `${years.toFixed(1)}y old account` : `${Math.round(years * 12)}mo old account`);
+  }
+  repLine.textContent = parts.join(" · ");
+
+  const banned = rep.vacBanned || rep.communityBanned || (rep.economyBan && rep.economyBan !== "none");
+  banWarn.style.display = banned ? "block" : "none";
+  if (!banned) return;
+  banWarn.innerHTML = "";
+  banWarn.appendChild(el("b", null, "⚠ This account has a Steam ban on record. "));
+  const bits = [];
+  if (rep.vacBanned) bits.push(`${rep.numberOfVACBans} VAC ban${rep.numberOfVACBans > 1 ? "s" : ""}`);
+  if (rep.numberOfGameBans > 0) bits.push(`${rep.numberOfGameBans} game ban${rep.numberOfGameBans > 1 ? "s" : ""}`);
+  if (rep.communityBanned) bits.push("community banned");
+  if (rep.economyBan && rep.economyBan !== "none") bits.push("trade ban: " + rep.economyBan);
+  banWarn.appendChild(document.createTextNode(bits.join(", ") + ". "));
+  if (rep.vacBanned || rep.communityBanned) {
+    banWarn.appendChild(document.createTextNode(
+      "VAC and community bans permanently freeze Steam Market access and trading — the dollar totals below assume normal trading ability, which this account very likely doesn't have."
+    ));
+  }
+}
+
+function renderSummary() {
+  const t = totals();
+  const p = state.profile;
+  $("persona").textContent = p.persona;
+  $("sid").textContent = p.steamid64;
+  if (p.avatar) { $("avatar").src = p.avatar; $("avatar").style.display = ""; } else $("avatar").style.display = "none";
+  $("vTotal").textContent = money(t.total);
+  $("vGames").textContent = state.games?.status === "ok" ? money(t.games) : "—";
+  $("lGames").textContent = state.games?.status === "ok" ? `Game library (${state.games.games.length})` : "Game library";
+  const items = allItems();
+  $("vItems").textContent = money(t.inv);
+  $("lItems").textContent = `Items (${items.reduce((a,i)=>a+i.qty,0)})`;
+  $("fetchedAt").textContent = "fetched " + state.fetchedAt.toLocaleTimeString();
+
+  const liq = liquiditySummary();
+  const liqLine = $("liqLine");
+  liqLine.innerHTML = "";
+  const rated = liq.liquid + liq.thin + liq.illiquid;
+  if (rated > 0) {
+    liqLine.appendChild(el("span", null, "Of your priced items — "));
+    if (liq.liquid > 0) { const s = el("span", "liquid"); s.append("liquid ", el("b", null, money(liq.liquid))); liqLine.appendChild(s); }
+    if (liq.thin > 0) { const s = el("span", "thin"); s.append("thin market ", el("b", null, money(liq.thin))); liqLine.appendChild(s); }
+    if (liq.illiquid > 0) { const s = el("span", "illiquid"); s.append("illiquid ", el("b", null, money(liq.illiquid))); liqLine.appendChild(s); }
+    liqLine.title = "Based on current Skinport listing counts / Steam Market 24h volume — a proxy for demand, not a guaranteed sale.";
+  }
+  $("liqLegend").style.display = rated > 0 ? "" : "none";
+
+  const cash = cashOutSummary();
+  const cashoutLine = $("cashoutLine");
+  if (cash.gross > 0) {
+    cashoutLine.style.display = "";
+    cashoutLine.innerHTML = "";
+    cashoutLine.appendChild(document.createTextNode("If you sold every priced item today: "));
+    cashoutLine.appendChild(el("b", null, "−" + money(cash.fees) + " in marketplace fees"));
+    cashoutLine.appendChild(document.createTextNode(" → "));
+    cashoutLine.appendChild(el("span", "net", money(cash.net) + " net"));
+    if (cash.unrated > 0) cashoutLine.appendChild(document.createTextNode(` (${money(cash.unrated)} has no known sell-fee source, excluded from the fee estimate)`));
+    cashoutLine.title = "Skinport 8% (6% above $1000/item) · Steam Community Market 15% (5% Steam + 10% game publisher) — current published rates, not a guarantee of what you'd actually net.";
+  } else {
+    cashoutLine.style.display = "none";
+  }
+}
+
+function renderSpectrum() {
+  const groups = rarityGroups();
+  const total = groups.reduce((a, g) => a + g.value, 0) || 1;
+  const bar = $("specBar"), legend = $("specLegend");
+  bar.innerHTML = ""; legend.innerHTML = "";
+  for (const g of groups) {
+    const seg = el("button", "seg" + (state.rarityFilter && state.rarityFilter !== g.name ? " dimmed" : ""));
+    seg.style.width = Math.max((g.value / total) * 100, 2.5) + "%";
+    seg.style.background = g.color;
+    seg.title = `${g.name} — ${money(g.value)}`;
+    seg.setAttribute("aria-pressed", String(state.rarityFilter === g.name));
+    seg.onclick = () => { state.rarityFilter = state.rarityFilter === g.name ? null : g.name; renderSpectrum(); renderInventory(); };
+    bar.appendChild(seg);
+
+    const leg = el("button", "leg" + (state.rarityFilter && state.rarityFilter !== g.name ? " dimmed" : ""));
+    const dot = el("i"); dot.style.background = g.color;
+    leg.appendChild(dot);
+    leg.appendChild(document.createTextNode(g.name + " "));
+    leg.appendChild(el("b", null, money(g.value)));
+    leg.onclick = seg.onclick;
+    legend.appendChild(leg);
+  }
+  if (state.rarityFilter) {
+    const c = el("button", "leg clear", "clear filter ✕");
+    c.onclick = () => { state.rarityFilter = null; renderSpectrum(); renderInventory(); };
+    legend.appendChild(c);
+  }
+}
+
+function renderTabs() {
+  const tabs = $("tabs");
+  tabs.innerHTML = "";
+  for (const a of APPS) {
+    const inv = state.inventories[a.appid];
+    const b = el("button", "tab" + (state.tab === a.appid ? " on" : ""));
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-selected", String(state.tab === a.appid));
+    b.appendChild(document.createTextNode(a.label));
+    const val = el("span", "tabval",
+      inv?.status === "ok" ? money(inv.items.reduce((s,i)=>s+i.priceMarket*i.qty,0)) :
+      inv?.status === "private" ? "private" :
+      inv?.status === "rate_limited" ? "429" : "—");
+    b.appendChild(val);
+    b.onclick = () => { state.tab = a.appid; renderTabs(); renderInventory(); };
+    tabs.appendChild(b);
+  }
+}
+
+function renderInventory() {
+  const body = $("invBody"), fine = $("invFine");
+  body.innerHTML = ""; fine.textContent = "";
+  const inv = state.inventories[state.tab];
+  if (!inv) return;
+
+  if (inv.status === "private") {
+    const n = el("div", "notice");
+    n.appendChild(el("b", null, "This inventory is private."));
+    const p = el("p", null, "Inventory visibility is a separate Steam setting from profile visibility — the owner can open it under Profile → Privacy Settings → Inventory → Public. Everything else on this page still counts toward the total.");
+    n.appendChild(p);
+    body.appendChild(n);
+    return;
+  }
+  if (inv.status === "rate_limited") {
+    const n = el("div", "notice");
+    n.appendChild(el("b", null, "Steam rate-limited this inventory fetch."));
+    n.appendChild(el("p", null, "The community inventory endpoint throttles hard. Wait a minute and hit Refresh — a successful fetch is cached for 30 minutes."));
+    body.appendChild(n);
+    return;
+  }
+  if (inv.status !== "ok") {
+    body.appendChild(el("div", "notice", "Couldn't load this inventory (" + (inv.httpStatus || inv.error || "unknown error") + ")."));
+    return;
+  }
+
+  let list = inv.items;
+  if (state.rarityFilter) list = list.filter((i) => i.rarity === state.rarityFilter);
+  list = [...list].sort((a, b) =>
+    state.sort === "price" ? b.priceMarket * b.qty - a.priceMarket * a.qty :
+    state.sort === "rarity" ? (a.rarity === b.rarity ? b.priceMarket - a.priceMarket : a.rarity.localeCompare(b.rarity)) :
+    a.name.localeCompare(b.name));
+
+  const grid = el("div", "grid");
+  for (const it of list) {
+    const card = el("article", "card");
+    card.style.setProperty("--rar", it.rarityColor);
+
+    const art = el("div", "card-art");
+    if (it.icon) {
+      const img = document.createElement("img");
+      img.loading = "lazy"; img.alt = ""; img.src = it.icon;
+      art.appendChild(img);
+    }
+    if (it.qty > 1) art.appendChild(el("span", "qty mono", "×" + it.qty));
+    card.appendChild(art);
+
+    const bodyEl = el("div", "card-body");
+    bodyEl.appendChild(el("div", "card-name", it.name));
+
+    const meta = el("div", "card-meta");
+    const rp = el("span", "pill", it.rarity);
+    rp.style.color = it.rarityColor;
+    rp.style.borderColor = it.rarityColor + "55";
+    meta.appendChild(rp);
+    if (it.wear) meta.appendChild(el("span", "pill", it.wear));
+    if (it.hold) {
+      const hp = el("span", "pill", "trade hold");
+      hp.title = "Restriction lifts " + new Date(it.hold).toLocaleDateString();
+      meta.appendChild(hp);
+    }
+    if (it.liquidity) {
+      const lp = el("span", "pill liqpill " + it.liquidity.level,
+        it.liquidity.level === "liquid" ? "liquid" : it.liquidity.level === "thin" ? "thin market" : "illiquid");
+      lp.title = `${it.liquidity.metric.toLocaleString()} ${it.liquidity.unitLabel} — an estimate, not a guarantee it'll sell`;
+      meta.appendChild(lp);
+    }
+    bodyEl.appendChild(meta);
+
+    const prices = el("div", "card-prices");
+    if (it.priced) {
+      const steamSrc = it.priceSource === "steam";
+      const d1 = el("div"); d1.appendChild(el("label", null, steamSrc ? "Steam mkt" : "Market")); d1.appendChild(el("span", "price", money(it.priceMarket)));
+      prices.appendChild(d1);
+      if (it.priceSuggested > 0) {
+        const d2 = el("div"); d2.appendChild(el("label", null, steamSrc ? "Median" : "Suggested")); d2.appendChild(el("span", "price sug", money(it.priceSuggested)));
+        prices.appendChild(d2);
+      }
+    } else {
+      prices.appendChild(el("span", "unpriced",
+        it.marketable ? "no current listings" :
+        it.hold ? "trade-held — not yet marketable" : "not marketable"));
+    }
+    if (it.priced && it.sellLink) {
+      const a = document.createElement("a");
+      a.className = "selllink"; a.href = it.sellLink; a.target = "_blank"; a.rel = "noopener noreferrer";
+      a.textContent = it.priceSource === "steam" ? "Steam Market ↗" : "Sell on Skinport ↗";
+      prices.appendChild(a);
+    }
+    bodyEl.appendChild(prices);
+    card.appendChild(bodyEl);
+    grid.appendChild(card);
+  }
+  body.appendChild(grid);
+  if (!list.length) body.appendChild(el("p", "fine", "No items match this filter."));
+
+  const notes = [];
+  if (!inv.pricesAvailable)
+    notes.push("Skinport price feed was unreachable for this app — Steam Market fallback prices still apply where cached.");
+  if (inv.pricePending > 0)
+    notes.push(inv.pricePending + " item" + (inv.pricePending > 1 ? "s are" : " is") + " queued for first-time Steam Market pricing — re-appraise in a few minutes to fill them in.");
+  if (state.tab === 730)
+    notes.push("Wear tier comes from the item itself. Exact float values need inspect-link resolution through the game coordinator (bot pool) — hook point is in the README.");
+  if (state.tab === 440 && inv.items.some((i) => i.name.startsWith("Unusual ")))
+    notes.push("Unusual hats are priced by name only — the particle effect that drives most of their real value isn't captured here.");
+  if (state.tab === 252490)
+    notes.push("Rust DLC packs (Instruments, Sunburn, …) are account entitlements, not inventory items — Steam has no public API to check another account's DLC ownership, so they aren't counted.");
+  if (state.tab === 753)
+    notes.push("Steam Community inventory: trading cards, backgrounds, emotes and gems. Priced via Steam Market.");
+  fine.textContent = notes.join("  ·  ");
+}
+
+function renderGames() {
+  const panel = $("gamesPanel"), body = $("gamesBody");
+  body.innerHTML = "";
+  const g = state.games;
+  if (!g || g.status !== "ok") {
+    if (g?.status === "private") {
+      panel.style.display = "";
+      const n = el("div", "notice");
+      n.appendChild(el("b", null, "Game details are private."));
+      n.appendChild(el("p", null, "This is a separate privacy toggle from inventory visibility (Profile → Privacy Settings → Game details). Inventory value still counts."));
+      body.appendChild(n);
+      $("gamesHeadVal").textContent = "";
+    } else panel.style.display = "none";
+    return;
+  }
+  panel.style.display = "";
+  const onSale = g.games.filter((x) => x.discount > 0);
+  const rebuild = g.games.reduce((a, x) => a + (x.sale ?? x.price ?? 0), 0);
+  $("gamesHeadVal").textContent = money(totals().games);
+  const list = el("div", "gamelist");
+  const sorted = [...g.games].sort((a, b) => (b.price || 0) - (a.price || 0) || b.hours - a.hours);
+  for (const game of sorted) {
+    const row = el("div", "gamerow");
+    const ic = document.createElement("img");
+    ic.className = "gicon"; ic.alt = ""; ic.loading = "lazy";
+    if (game.img) ic.src = game.img;
+    row.appendChild(ic);
+    row.appendChild(el("span", "gname", game.name));
+    row.appendChild(el("span", "ghours", game.hours.toLocaleString() + " h"));
+    if (game.discount > 0) row.appendChild(el("span", "gdeal", `−${game.discount}% ${money(game.sale)}`));
+    const priceCell = el("span", "gprice" + (game.price ? "" : " free") + (game.discount > 0 ? " onsale" : ""), game.price ? money(game.price) : "free");
+    if (game.discount > 0) priceCell.title = "Regular price — the total counts this, not the sale price";
+    row.appendChild(priceCell);
+    list.appendChild(row);
+  }
+  body.appendChild(list);
+  if (onSale.length) {
+    const note = el("p", "fine");
+    note.appendChild(el("span", "salesum", `${onSale.length} game${onSale.length > 1 ? "s" : ""} on sale right now`));
+    note.appendChild(document.createTextNode(` — rebuilding this library today would cost ${money(rebuild)} instead of ${money(totals().games)}.`));
+    body.appendChild(note);
+  }
+}
+
+function dealCard(d) {
+  const card = document.createElement("a");
+  card.className = "dealcard";
+  card.href = d.dealLink;
+  card.target = "_blank";
+  card.rel = "noopener noreferrer";
+  if (d.thumb) {
+    const img = document.createElement("img");
+    img.src = d.thumb; img.alt = ""; img.loading = "lazy";
+    card.appendChild(img);
+  }
+  const bodyEl = el("div", "deal-body");
+  bodyEl.appendChild(el("div", "deal-title", d.title));
+  const prices = el("div", "deal-prices");
+  prices.appendChild(el("span", "deal-sale", "$" + d.salePrice.toFixed(2)));
+  prices.appendChild(el("span", "deal-normal", "$" + d.normalPrice.toFixed(2)));
+  bodyEl.appendChild(prices);
+  bodyEl.appendChild(el("span", "deal-save", `−${d.savings}%`));
+  bodyEl.appendChild(el("span", "deal-rating", `${d.ratingText} · ${d.ratingPercent}% (${d.ratingCount.toLocaleString()})`));
+  card.appendChild(bodyEl);
+  return card;
+}
+
+function renderDeals() {
+  const panel = $("dealsPanel"), body = $("dealsBody");
+  body.innerHTML = "";
+  const has = state.deals && state.deals.length;
+  $("navDeals").style.display = has ? "" : "none";
+  if (!has) { panel.style.display = "none"; return; }
+  panel.style.display = "";
+
+  // Group by genre. Genre tags fetch lazily server-side (one Steam API call
+  // per game, paced) — anything not fetched yet lands in "More" rather than
+  // blocking the whole list on a cold cache.
+  const groups = new Map();
+  for (const d of state.deals) {
+    const g = d.genre || "More";
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(d);
+  }
+  const ordered = [...groups.entries()].sort((a, b) => {
+    if (a[0] === "More") return 1;
+    if (b[0] === "More") return -1;
+    return b[1].length - a[1].length;
+  });
+
+  for (const [genre, deals] of ordered) {
+    const cat = el("div", "dealcat");
+    const head = el("div", "dealcat-head");
+    head.appendChild(el("h3", null, genre));
+    head.appendChild(el("span", null, `(${deals.length})`));
+    if (genre === "More") head.title = "Genre tags for these are still loading — refresh in a few minutes to see them sorted into categories.";
+    cat.appendChild(head);
+    const grid = el("div", "dealsgrid");
+    for (const d of deals) grid.appendChild(dealCard(d));
+    cat.appendChild(grid);
+    body.appendChild(cat);
+  }
+}
+
+/* ---------- share card ---------- */
+function rr(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawShareCard() {
+  const canvas = $("shareCanvas");
+  const W = 1200, H = 630;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  const t = totals();
+  const disp = "'Chakra Petch', 'Arial Black', sans-serif";
+  const mono = "'JetBrains Mono', ui-monospace, monospace";
+
+  ctx.fillStyle = "#0B0F15"; ctx.fillRect(0, 0, W, H);
+  const glow = ctx.createRadialGradient(W*0.82, 90, 40, W*0.82, 90, 560);
+  glow.addColorStop(0, "rgba(99,176,227,0.16)"); glow.addColorStop(1, "rgba(99,176,227,0)");
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = "#63B0E3"; ctx.font = "700 26px " + disp; ctx.fillText("VAULTMARK", 64, 78);
+  ctx.fillStyle = "#5B6779"; ctx.font = "500 22px " + mono; ctx.fillText("steam portfolio appraisal", 244, 78);
+
+  ctx.fillStyle = "#E7EDF5"; ctx.font = "700 44px " + disp;
+  ctx.fillText(String(state.profile.persona).slice(0, 28), 64, 158);
+  ctx.fillStyle = "#5B6779"; ctx.font = "400 20px " + mono; ctx.fillText(state.profile.steamid64, 64, 190);
+
+  ctx.fillStyle = "#E7EDF5"; ctx.font = "700 118px " + disp;
+  ctx.fillText(money(t.total), 58, 320);
+  ctx.fillStyle = "#8894A8"; ctx.font = "500 24px " + mono;
+  const parts = [];
+  if (state.games?.status === "ok") parts.push("games " + money(t.games));
+  parts.push("items " + money(t.inv));
+  ctx.fillText(parts.join("   ·   "), 64, 366);
+
+  const groups = rarityGroups();
+  const tot = groups.reduce((a, g) => a + g.value, 0) || 1;
+  let x = 64; const bw = W - 128, by = 404, bh = 22;
+  for (const g of groups) {
+    const w = Math.max((g.value / tot) * bw, 8);
+    ctx.fillStyle = g.color;
+    rr(ctx, x, by, Math.max(w - 3, 4), bh, 5); ctx.fill();
+    x += w;
+    if (x > 64 + bw) break;
+  }
+
+  const top = allItems().sort((a, b) => b.priceMarket - a.priceMarket).slice(0, 3);
+  let ty = 486; ctx.font = "500 24px " + mono;
+  for (const it of top) {
+    ctx.fillStyle = it.rarityColor;
+    rr(ctx, 64, ty - 17, 10, 20, 3); ctx.fill();
+    ctx.fillStyle = "#C6CFDC";
+    const name = it.name.length > 46 ? it.name.slice(0, 45) + "…" : it.name;
+    ctx.fillText(name, 92, ty);
+    ctx.fillStyle = "#E7EDF5";
+    const p = money(it.priceMarket);
+    ctx.fillText(p, W - 64 - ctx.measureText(p).width, ty);
+    ty += 44;
+  }
+
+  ctx.fillStyle = "#3A4557"; ctx.font = "400 18px " + mono;
+  ctx.fillText("appraised " + new Date().toISOString().slice(0, 10), 64, H - 32);
+}
+
+/* ---------- PDF report ---------- */
+/* Always USD, regardless of the on-page currency selector: jsPDF's built-in
+   fonts only cover WinAnsi/Latin-1, so symbols like ₹ ₩ ₽ ₴ ฿ ₫ would render
+   as blank boxes. One reliably-correct currency beats a broken-looking one. */
+function usd(n) {
+  const digits = Math.abs(n) >= 1000 ? 0 : 2;
+  return "$" + n.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+// jsPDF's built-in fonts only cover WinAnsi/Latin-1 — emoji, CJK, and most
+// exotic symbols in Steam personas/item names render as garbage bytes
+// (confirmed: "🥶Anomaly 💲..." came out as "Ø>ÝvAnomaly Ø=Ü²..."). Stripping
+// them beats shipping a PDF with mojibake in it.
+function pdfSafe(s) {
+  const cleaned = String(s ?? "").replace(/[^\x20-\x7E\xA0-\xFF]/g, "").replace(/\s+/g, " ").trim();
+  return cleaned || "(unnamed)";
+}
+
+function writeSegments(doc, segments, x, y) {
+  let cx = x;
+  for (const seg of segments) {
+    doc.setTextColor(...seg.color);
+    doc.setFont("helvetica", seg.bold ? "bold" : "normal");
+    doc.text(seg.text, cx, y);
+    cx += doc.getTextWidth(seg.text);
+  }
+}
+
+function buildPdfReport() {
+  if (!state.steamid64) return;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const W = doc.internal.pageSize.getWidth();
+  const M = 40;
+  let y;
+
+  const NAVY = [11, 15, 21], ACCENT = [58, 130, 178], TEXT = [24, 28, 36], MUT = [100, 110, 125],
+        DIM = [150, 158, 172], RED = [178, 44, 44], REDBG = [253, 235, 235], GREEN = [46, 125, 60],
+        AMBER = [163, 105, 22], LINE = [222, 227, 234], PANEL = [246, 248, 251];
+
+  function header() {
+    doc.setFillColor(...NAVY);
+    doc.rect(0, 0, W, 62, "F");
+    doc.setTextColor(110, 180, 220);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(17);
+    doc.text("VAULTMARK", M, 28);
+    doc.setTextColor(215, 222, 232);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8.5);
+    doc.text("STEAM PORTFOLIO APPRAISAL REPORT", M, 42);
+    doc.setTextColor(150, 160, 178);
+    doc.setFontSize(7.5);
+    doc.text("Generated " + new Date().toLocaleString(), W - M, 26, { align: "right" });
+    doc.text(state.steamid64, W - M, 37, { align: "right" });
+  }
+  function footer(pageNum, pageCount) {
+    doc.setDrawColor(...LINE);
+    doc.line(M, 812, W - M, 812);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...DIM);
+    doc.text("Generated by VAULTMARK — prices are estimates from Skinport/Steam Market at time of generation, not a guarantee of sale price.", M, 822);
+    doc.text(`Page ${pageNum} of ${pageCount}`, W - M, 822, { align: "right" });
+  }
+
+  header();
+  y = 88;
+
+  doc.setTextColor(...TEXT);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(16);
+  doc.text(pdfSafe(state.profile.persona || state.steamid64), M, y);
+  y += 15;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+  doc.setTextColor(...MUT);
+  doc.text(state.profile.profileUrl || ("https://steamcommunity.com/profiles/" + state.steamid64), M, y);
+  y += 18;
+
+  const rep = state.reputation;
+  const banned = rep && (rep.vacBanned || rep.communityBanned || (rep.economyBan && rep.economyBan !== "none"));
+  if (banned) {
+    const bits = [];
+    if (rep.vacBanned) bits.push(rep.numberOfVACBans + " VAC ban" + (rep.numberOfVACBans > 1 ? "s" : ""));
+    if (rep.numberOfGameBans > 0) bits.push(rep.numberOfGameBans + " game ban" + (rep.numberOfGameBans > 1 ? "s" : ""));
+    if (rep.communityBanned) bits.push("community banned");
+    if (rep.economyBan && rep.economyBan !== "none") bits.push("trade ban: " + rep.economyBan);
+    const detail = bits.join(", ") + ". VAC/community bans permanently freeze Steam Market access and trading — the values below assume normal trading ability, which this account does not have.";
+    const lines = doc.splitTextToSize(detail, W - 2 * M - 24);
+    const boxH = 28 + lines.length * 11;
+    doc.setFillColor(...REDBG);
+    doc.setDrawColor(...RED);
+    doc.roundedRect(M, y, W - 2 * M, boxH, 4, 4, "FD");
+    doc.setTextColor(...RED);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(10);
+    doc.text("⚠ STEAM BAN ON RECORD", M + 12, y + 17);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8.5);
+    doc.text(lines, M + 12, y + 30);
+    y += boxH + 18;
+  } else {
+    y += 10;
+  }
+
+  const t = totals();
+  const liq = liquiditySummary();
+  const colW = (W - 2 * M) / 3;
+  [["TOTAL APPRAISAL (USD)", usd(t.total), ACCENT],
+   ["GAME LIBRARY", state.games?.status === "ok" ? usd(t.games) : "—", TEXT],
+   ["ITEMS", usd(t.inv), TEXT]].forEach((s, i) => {
+    const x = M + i * colW;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...MUT);
+    doc.text(s[0], x, y);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(19); doc.setTextColor(...s[2]);
+    doc.text(s[1], x, y + 20);
+  });
+  y += 36;
+
+  if (rep && rep.level != null) {
+    const parts = [`Level ${rep.level}`];
+    if (rep.badgeCount != null) parts.push(`${rep.badgeCount} badges`);
+    const created = state.profile?.accountCreated;
+    if (created) {
+      const years = (Date.now() - created) / (365.25 * 24 * 3600 * 1000);
+      parts.push((years >= 1 ? years.toFixed(1) + "y" : Math.round(years * 12) + "mo") + " old account");
+    }
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(...MUT);
+    doc.text(parts.join("   ·   "), M, y);
+    y += 14;
+  }
+
+  const ratedTotal = liq.liquid + liq.thin + liq.illiquid;
+  if (ratedTotal > 0) {
+    const segs = [{ text: "Liquidity of priced items:  ", color: MUT }];
+    if (liq.liquid > 0) segs.push({ text: `liquid ${usd(liq.liquid)}   `, color: GREEN, bold: true });
+    if (liq.thin > 0) segs.push({ text: `thin market ${usd(liq.thin)}   `, color: AMBER, bold: true });
+    if (liq.illiquid > 0) segs.push({ text: `illiquid ${usd(liq.illiquid)}`, color: RED, bold: true });
+    doc.setFontSize(8.5);
+    writeSegments(doc, segs, M, y);
+    y += 16;
+  }
+
+  const cash = cashOutSummary();
+  if (cash.gross > 0) {
+    doc.setFontSize(8.5);
+    writeSegments(doc, [
+      { text: "If sold today:  ", color: MUT },
+      { text: `-${usd(cash.fees)} fees`, color: RED, bold: true },
+      { text: "  →  ", color: MUT },
+      { text: `${usd(cash.net)} net`, color: ACCENT, bold: true },
+      { text: "  (Skinport 8%/6%, Steam Market 15% — current published rates)", color: DIM },
+    ], M, y);
+    y += 20;
+  }
+
+  doc.setDrawColor(...LINE);
+  doc.line(M, y, W - M, y);
+  y += 20;
+
+  // ---- game library table ----
+  if (state.games?.status === "ok" && state.games.games.length) {
+    doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(...TEXT);
+    doc.text("Game Library", M, y);
+    y += 8;
+    const rows = [...state.games.games]
+      .sort((a, b) => (b.price || 0) - (a.price || 0))
+      .map((g) => [
+        pdfSafe(g.name),
+        g.hours.toLocaleString() + " h",
+        g.discount > 0 ? `-${g.discount}% ${usd(g.sale)}` : "",
+        g.price ? usd(g.price) : "free",
+      ]);
+    doc.autoTable({
+      startY: y + 6,
+      margin: { left: M, right: M },
+      head: [["Game", "Hours", "On sale now", "Price (regular, counted above)"]],
+      body: rows,
+      theme: "plain",
+      styles: { font: "helvetica", fontSize: 8.5, textColor: TEXT, cellPadding: { top: 4, bottom: 4, left: 6, right: 6 } },
+      headStyles: { fillColor: PANEL, textColor: MUT, fontStyle: "bold", fontSize: 7.5 },
+      alternateRowStyles: { fillColor: [252, 253, 254] },
+      columnStyles: {
+        0: { cellWidth: 250, overflow: "linebreak" },
+        1: { halign: "right", cellWidth: 55 },
+        2: { halign: "right", cellWidth: 80, textColor: GREEN },
+        3: { halign: "right", cellWidth: 90 },
+      },
+      didDrawPage: header,
+    });
+    y = doc.lastAutoTable.finalY + 24;
+  }
+
+  // ---- per-app item tables ----
+  // Capped per app: a "detailed report" that runs 35 pages because of $0.03
+  // trading cards stops being something anyone reads. Top N by value plus a
+  // rollup line for the rest keeps it focused on what actually matters.
+  const ITEM_CAP = 50;
+  for (const a of APPS) {
+    const inv = state.inventories[a.appid];
+    if (!inv || inv.status !== "ok") continue;
+    const priced = inv.items.filter((it) => it.priced).sort((x, z) => z.priceMarket * z.qty - x.priceMarket * x.qty);
+    if (!priced.length) continue;
+    if (y > 700) { doc.addPage(); y = 88; }
+    const appTotal = priced.reduce((s, it) => s + it.priceMarket * it.qty, 0);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(...TEXT);
+    doc.text(`${a.label} — ${usd(appTotal)} (${priced.length} priced item${priced.length > 1 ? "s" : ""})`, M, y);
+    y += 8;
+    const shown = priced.slice(0, ITEM_CAP);
+    const rows = shown.map((it) => [
+      pdfSafe(it.name) + (it.qty > 1 ? ` ×${it.qty}` : ""),
+      it.rarity || "",
+      it.wear || "",
+      it.liquidity ? it.liquidity.level : "—",
+      usd(it.priceMarket * it.qty),
+    ]);
+    doc.autoTable({
+      startY: y + 6,
+      margin: { left: M, right: M },
+      head: [["Item", "Rarity", "Wear", "Liquidity", "Price"]],
+      body: rows,
+      theme: "plain",
+      styles: { font: "helvetica", fontSize: 8, textColor: TEXT, cellPadding: { top: 3.5, bottom: 3.5, left: 6, right: 6 }, overflow: "linebreak" },
+      headStyles: { fillColor: PANEL, textColor: MUT, fontStyle: "bold", fontSize: 7.5 },
+      alternateRowStyles: { fillColor: [252, 253, 254] },
+      columnStyles: {
+        0: { cellWidth: 230, overflow: "linebreak" },
+        1: { cellWidth: 70 }, 2: { cellWidth: 60 }, 3: { cellWidth: 50 },
+        4: { halign: "right", cellWidth: 65 },
+      },
+      didParseCell: (data) => {
+        if (data.column.index === 3 && data.section === "body") {
+          const v = data.cell.raw;
+          data.cell.styles.textColor = v === "liquid" ? GREEN : v === "thin" ? AMBER : v === "illiquid" ? RED : DIM;
+        }
+      },
+      didDrawPage: header,
+    });
+    y = doc.lastAutoTable.finalY + 14;
+    const notes = [];
+    const remainder = priced.slice(ITEM_CAP);
+    if (remainder.length) {
+      const remainderValue = remainder.reduce((s, it) => s + it.priceMarket * it.qty, 0);
+      notes.push(`+ ${remainder.length} more priced item${remainder.length > 1 ? "s" : ""} below the cutoff, totaling ${usd(remainderValue)}`);
+    }
+    const unpriced = inv.items.length - priced.length;
+    if (unpriced > 0) notes.push(`+ ${unpriced} unpriced/not-marketable item${unpriced > 1 ? "s" : ""} (counted as $0)`);
+    if (notes.length) {
+      doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...DIM);
+      doc.text(notes.join("  ·  "), M, y);
+      y += 10;
+    }
+    y += 14;
+  }
+
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    footer(i, pageCount);
+  }
+
+  doc.save("vaultmark-report-" + (state.profile?.persona || state.steamid64).replace(/[^\w-]+/g, "_") + ".pdf");
+}
+
+/* ---------- wiring ---------- */
+$("q").addEventListener("input", () => {
+  const parsed = parseSteamInput($("q").value);
+  const hint = $("hint");
+  if (!parsed) { hint.textContent = ""; hint.className = "parsehint mono"; return; }
+  if (parsed.type === "invalid") { hint.textContent = "Not a profile URL, vanity name, SteamID64, STEAM_ id, or [U:1:…] id"; hint.className = "parsehint mono bad"; return; }
+  hint.className = "parsehint mono";
+  hint.textContent = parsed.type === "vanity" ? `vanity → will resolve "${parsed.vanity}"` : `${parsed.type} → ${parsed.steamid64}`;
+});
+$("q").addEventListener("keydown", (e) => { if (e.key === "Enter") appraise(false); });
+$("go").addEventListener("click", () => appraise(false));
+$("refresh").addEventListener("click", () => appraise(true));
+$("sort").addEventListener("change", (e) => { state.sort = e.target.value; renderInventory(); });
+$("cur").addEventListener("change", (e) => { state.currency = e.target.value; renderAll(); });
+$("region").addEventListener("change", async (e) => {
+  state.region = e.target.value;
+  if (state.steamid64 && $("results").style.display === "flex") {
+    state.games = await api("/api/games/" + state.steamid64 + "?cc=" + state.region);
+    renderAll();
+  }
+});
+function jumpTo(id) { $(id).scrollIntoView({ behavior: "smooth", block: "start" }); }
+$("navSummary").addEventListener("click", () => jumpTo("summaryPanel"));
+$("navGames").addEventListener("click", () => jumpTo("gamesPanel"));
+$("navItems").addEventListener("click", () => jumpTo("itemsPanel"));
+$("navHistory").addEventListener("click", () => jumpTo("historyPanel"));
+$("navDeals").addEventListener("click", () => jumpTo("dealsPanel"));
+$("navShare").addEventListener("click", () => jumpTo("sharePanel"));
+$("navReport").addEventListener("click", () => jumpTo("reportPanel"));
+
+// Replace with the real inbox that should receive contact-form messages.
+const CONTACT_EMAIL = "talhabhurgri8@gmail.com";
+
+$("guideToggle").addEventListener("click", () => {
+  const panel = $("guidePanel");
+  const open = panel.style.display === "block";
+  panel.style.display = open ? "none" : "block";
+  $("guideToggle").setAttribute("aria-expanded", String(!open));
+  if (!open) panel.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+if (CONTACT_EMAIL.endsWith(".example")) {
+  $("contactPlaceholderWarn").style.display = "block";
+} else {
+  $("contactPlaceholderWarn").style.display = "none";
+}
+
+$("contactForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const name = $("cName").value.trim();
+  const from = $("cEmail").value.trim();
+  const msg = $("cMessage").value.trim();
+  if (!msg) return;
+  const subject = "VAULTMARK contact form" + (name ? " — " + name : "");
+  const bodyLines = [msg, "", "---", from ? "Reply to: " + from : "(no reply email given)"];
+  const url = "mailto:" + encodeURIComponent(CONTACT_EMAIL)
+    + "?subject=" + encodeURIComponent(subject)
+    + "&body=" + encodeURIComponent(bodyLines.join("\n"));
+  window.location.href = url;
+});
+
+$("dl").addEventListener("click", () => {
+  const a = document.createElement("a");
+  a.download = "vaultmark-" + (state.profile?.persona || "appraisal") + ".png";
+  a.href = $("shareCanvas").toDataURL("image/png");
+  a.click();
+});
+$("dlPdf").addEventListener("click", () => {
+  $("dlPdf").disabled = true;
+  $("dlPdf").textContent = "Building PDF…";
+  try {
+    buildPdfReport();
+  } finally {
+    $("dlPdf").disabled = false;
+    $("dlPdf").textContent = "Download PDF Report";
+  }
+});
+$("lbOptIn").addEventListener("change", async (e) => {
+  if (!e.target.checked || state.lbPosted) return;
+  state.lbPosted = true;
+  e.target.disabled = true;
+  await saveSnapshot(true);
+  $("lbStatus").textContent = "Added ✓ — refresh the leaderboard to see it (can't be withdrawn from here).";
+  loadLeaderboard();
+});
+$("copyBadge").addEventListener("click", () => {
+  navigator.clipboard?.writeText($("badgeSnippet").textContent);
+  $("copyBadge").textContent = "Copied";
+  setTimeout(() => { $("copyBadge").textContent = "Copy"; }, 1500);
+});
+$("copyShareLink").addEventListener("click", () => {
+  navigator.clipboard?.writeText($("shareLinkSnippet").textContent);
+  $("copyShareLink").textContent = "Copied";
+  setTimeout(() => { $("copyShareLink").textContent = "Copy link"; }, 1500);
+});
+
+/* Steam prices the same game very differently by region ($39.99 in the US
+   store, $18.99 in Pakistan's, ₹1,799 in India's — all verified live, not
+   guessed). Defaulting to US meant anyone browsing from elsewhere saw a
+   number that didn't match their own Steam client. Guess their region from
+   the browser locale instead — a heuristic, not exact, but a far better
+   starting point than always assuming US. The selector still overrides it
+   manually if the guess is off. */
+function detectRegion(validCodes) {
+  const langs = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || ""];
+  for (const lang of langs) {
+    const parts = lang.split("-");
+    if (parts.length > 1) {
+      const region = parts[parts.length - 1].toLowerCase();
+      if (validCodes.has(region)) return region;
+    }
+  }
+  return null;
+}
+
+/* boot: rates + key check + leaderboard */
+(async () => {
+  const regionSel = $("region");
+  const validRegions = new Set([...regionSel.options].map((o) => o.value));
+  const detected = detectRegion(validRegions);
+  if (detected && detected !== state.region) {
+    state.region = detected;
+    regionSel.value = detected;
+  }
+
+  const [health, rates] = await Promise.all([api("/api/health"), api("/api/rates"), loadLeaderboard()]);
+  if (health.keyConfigured === false) $("keywarn").style.display = "block";
+  if (rates.rates) {
+    state.rates = rates.rates;
+    const sel = $("cur");
+    sel.innerHTML = "";
+    for (const c of Object.keys(rates.rates)) {
+      const o = document.createElement("option");
+      o.textContent = c;
+      sel.appendChild(o);
+    }
+    sel.value = "USD";
+  }
+})();
+</script>
+</body>
+</html>

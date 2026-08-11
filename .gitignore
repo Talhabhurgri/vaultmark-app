@@ -1,0 +1,8 @@
+node_modules/
+.env
+cache.json
+vaultmark.db
+vaultmark.db-journal
+vaultmark.db-wal
+vaultmark.db-shm
+*.log
