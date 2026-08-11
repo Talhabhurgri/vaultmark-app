@@ -1,0 +1,41 @@
+services:
+  app:
+    build: .
+    container_name: vaultmark-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - vaultmark-data:/app/data   # SQLite db survives rebuilds/restarts
+    expose:
+      - "3000"                     # not published to the host — nginx is the only public entrypoint
+
+  nginx:
+    image: nginx:alpine
+    container_name: vaultmark-nginx
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - certbot-webroot:/var/www/certbot
+      - certbot-certs:/etc/letsencrypt
+
+  # Not a long-running service — invoked manually once DNS points at this
+  # server (see the deploy notes). Shares the same volumes as nginx so the
+  # cert it obtains is immediately where nginx expects to find it.
+  certbot:
+    image: certbot/certbot
+    container_name: vaultmark-certbot
+    volumes:
+      - certbot-webroot:/var/www/certbot
+      - certbot-certs:/etc/letsencrypt
+    entrypoint: "true"   # no-op by default; run with `docker compose run` to actually issue/renew
+
+volumes:
+  vaultmark-data:
+  certbot-webroot:
+  certbot-certs:

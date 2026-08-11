@@ -1,0 +1,16 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+.env
+.env.example
+cache.json
+vaultmark.db
+vaultmark.db-journal
+vaultmark.db-wal
+vaultmark.db-shm
+.claude
+README.md
+Dockerfile
+docker-compose.yml
+nginx

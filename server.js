@@ -48,7 +48,11 @@ const PORT = Number(process.env.PORT || 3000);
    have somewhere durable to live. node:sqlite is built into Node 22.5+ — no
    native module to compile, which matters for one-command deploys. */
 
-const DB_FILE = path.join(__dirname, "vaultmark.db");
+// DB_FILE env var lets Docker mount a persistent volume at a dedicated data
+// directory instead of the app directory itself — defaults to the old
+// behavior for local/non-container dev, where nothing changes.
+const DB_FILE = process.env.DB_FILE || path.join(__dirname, "vaultmark.db");
+fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
 const db = new DatabaseSync(DB_FILE);
 db.exec(`
   CREATE TABLE IF NOT EXISTS cache (
