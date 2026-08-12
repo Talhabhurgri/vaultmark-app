@@ -74,6 +74,19 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_snapshots_steamid ON snapshots(steamid64, created_at);
   CREATE INDEX IF NOT EXISTS idx_snapshots_public ON snapshots(public, total);
+  -- One row per (item, day), not per price refresh — logging every 10-min
+  -- Skinport refresh for every item ever seen would be tens of thousands of
+  -- rows a day. Daily granularity is enough to show a real price trend and
+  -- keeps this bounded to (distinct items ever appraised) x (days), which is
+  -- small. Only items actually priced during a real appraisal get a row —
+  -- piggybacks on requests already being made, no extra API calls.
+  CREATE TABLE IF NOT EXISTS item_prices (
+    appid TEXT NOT NULL,
+    name  TEXT NOT NULL,
+    date  TEXT NOT NULL,
+    price REAL NOT NULL,
+    PRIMARY KEY (appid, name, date)
+  );
   CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     type       TEXT NOT NULL,   -- 'pageview' | 'appraisal' | 'share_view'
@@ -147,6 +160,22 @@ function cacheSet(key, val, ttlMs) {
 function cacheAge(key) {
   const hit = cache.get(key);
   return hit ? Date.now() - hit.at : null;
+}
+
+const upsertItemPrice = db.prepare(
+  "INSERT INTO item_prices (appid, name, date, price) VALUES (?, ?, ?, ?) " +
+  "ON CONFLICT(appid, name, date) DO UPDATE SET price = excluded.price"
+);
+function recordItemPrice(appid, name, price) {
+  if (!(price > 0)) return;
+  const date = new Date().toISOString().slice(0, 10);
+  try { upsertItemPrice.run(String(appid), name, date, price); } catch { /* history is a nice-to-have, never break pricing */ }
+}
+function getItemHistory(appid, name, days = 60) {
+  const since = new Date(Date.now() - days * 86400e3).toISOString().slice(0, 10);
+  return db.prepare(
+    "SELECT date, price FROM item_prices WHERE appid = ? AND name = ? AND date >= ? ORDER BY date ASC"
+  ).all(String(appid), name, since);
 }
 
 // Deliberately not tracking anything that would need a cookie-consent banner:
@@ -498,6 +527,27 @@ const INV_CONTEXT = { 753: 6 };
 
 let invFetchesActive = 0; // while >0, the market price queue holds off
 
+// Collection/sticker/charm info lives in the raw Steam `descriptions` array,
+// identified by stable `name` fields (not by scanning free text), confirmed
+// against a real CS2 item: itemset_name for the collection, sticker_info /
+// keychain_info for stickers and charms as an HTML block ending in a plain
+// "<br>Label: A, B</center>" summary line.
+function parseCraftedDetails(descriptions) {
+  let collection = null, stickers = [], charms = [];
+  for (const d of descriptions || []) {
+    if (d.name === "itemset_name" && d.value) {
+      collection = d.value.trim();
+    } else if (d.name === "sticker_info") {
+      const m = /<br>Sticker: ([^<]+)<\/center>/.exec(d.value || "");
+      if (m) stickers = m[1].split(",").map((s) => s.trim()).filter(Boolean);
+    } else if (d.name === "keychain_info") {
+      const m = /<br>Sticker Slab: ([^<]+)<\/center>/.exec(d.value || "");
+      if (m) charms = m[1].split(",").map((s) => s.trim()).filter(Boolean);
+    }
+  }
+  return { collection, stickers, charms };
+}
+
 async function fetchInventoryRaw(steamid64, appid) {
   invFetchesActive++;
   try {
@@ -537,7 +587,17 @@ async function fetchInventoryPages(steamid64, appid) {
     const desc = descriptions.get(`${a.classid}_${a.instanceid}`);
     if (!desc) continue;
     const name = desc.market_hash_name || desc.name;
-    const cur = stacks.get(name);
+    const { collection, stickers, charms } = parseCraftedDetails(desc.descriptions);
+    // Stickers/charms don't change market_hash_name, so a stickered copy and a
+    // bare copy of the same skin would otherwise collide into one stack and
+    // the sticker data of whichever asset lost the race would be silently
+    // dropped (confirmed against a real inventory: a 6x "M4A1-S | Fade FN"
+    // stack was 5 bare copies + 1 with $ tens of dollars of stickers on it).
+    // Only split the key for genuinely decorated items — plain items across
+    // every other game still stack purely by name, unchanged.
+    const decorated = stickers.length > 0 || charms.length > 0;
+    const key = decorated ? `${name}::${a.classid}_${a.instanceid}` : name;
+    const cur = stacks.get(key);
     const qty = Number(a.amount || 1);
     if (cur) { cur.qty += qty; continue; }
 
@@ -546,7 +606,7 @@ async function fetchInventoryPages(steamid64, appid) {
     const exteriorTag = tags.find((t) => t.category === "Exterior");
     const typeTag = tags.find((t) => t.category === "Type" || t.category === "Quality" || t.category === "item_class");
 
-    stacks.set(name, {
+    stacks.set(key, {
       name,
       qty,
       icon: desc.icon_url
@@ -559,6 +619,9 @@ async function fetchInventoryPages(steamid64, appid) {
       // cache_expiration = trade/market hold that lifts on a date, e.g. fresh
       // Rust drops — distinct from permanently untradable items.
       hold: desc.cache_expiration || null,
+      collection,
+      stickers,
+      charms,
     });
   }
 
@@ -618,6 +681,21 @@ async function fetchInventory(steamid64, appid) {
   const pending = [];
   const items = raw.stacks.map((s) => {
     const it = { ...s, priceMarket: 0, priceSuggested: 0, priced: false, priceSource: null, sellLinks: [], liquidity: null };
+    // Stickers/charms are separate catalog entries under the same appid, so
+    // the already-fetched Skinport map prices them too — no extra requests.
+    // Steam labels charms "Sticker Slab" in its own inventory HTML, but the
+    // tradeable market_hash_name is "Charm | X" (confirmed against Skinport's
+    // catalog directly; the two names don't match).
+    it.craftedValue = 0;
+    it.craftedPriced = [];
+    for (const n of s.stickers || []) {
+      const p = skinport?.[`Sticker | ${n}`]?.market;
+      if (p) { it.craftedValue += p; it.craftedPriced.push({ label: n, kind: "sticker", price: p }); }
+    }
+    for (const n of s.charms || []) {
+      const p = skinport?.[`Charm | ${n}`]?.market;
+      if (p) { it.craftedValue += p; it.craftedPriced.push({ label: n, kind: "charm", price: p }); }
+    }
     const sp = skinport?.[s.name];
     const po = sp ? undefined : cacheGet(`po:${appid}:${s.name}`);
     if (sp) {
@@ -627,6 +705,7 @@ async function fetchInventory(steamid64, appid) {
       it.priceSource = "skinport";
       it.sellLinks = buildSellLinks(appid, s.name, sp.link);
       it.liquidity = classifyLiquidity(sp.listings, LIQUIDITY_THRESHOLDS.skinportListings, "listed on Skinport");
+      recordItemPrice(appid, s.name, sp.market);
     } else if (po !== undefined) {
       it.priceMarket = po.market || po.suggested;
       it.priceSuggested = po.suggested;
@@ -635,9 +714,19 @@ async function fetchInventory(steamid64, appid) {
         it.priceSource = "steam";
         it.sellLinks = buildSellLinks(appid, s.name, null);
         it.liquidity = classifyLiquidity(po.volume, LIQUIDITY_THRESHOLDS.steamVolume24h, "sold/day on Steam");
+        recordItemPrice(appid, s.name, it.priceMarket);
       }
     } else if (s.marketable) {
       pending.push(s.name);
+    }
+    // Fold sticker/charm value into the item's own price — it's real value
+    // sitting in that inventory slot, the base skin price alone understates
+    // it — but keep craftedValue/craftedPriced exposed so the UI can label
+    // where the extra dollars came from instead of silently inflating a number.
+    if (it.craftedValue > 0) {
+      it.priceMarket += it.craftedValue;
+      it.priceSuggested += it.craftedValue;
+      if (!it.priced) { it.priced = true; it.priceSource = "crafted-only"; }
     }
     return it;
   });
@@ -912,6 +1001,15 @@ app.get("/api/history/:id", (req, res) => {
   res.json({ history });
 });
 
+app.get("/api/item-history/:appid/:name", (req, res) => {
+  const appid = Number(req.params.appid);
+  if (!Number.isInteger(appid) || appid <= 0) return res.status(400).json({ error: "bad_appid" });
+  const name = String(req.params.name || "").slice(0, 200);
+  if (!name) return res.status(400).json({ error: "bad_name" });
+  const history = getItemHistory(appid, name, 90);
+  res.json({ history });
+});
+
 app.get("/api/leaderboard", (req, res) => {
   // Latest *public* snapshot per steamid64, ranked by total.
   const leaderboard = db.prepare(`
@@ -969,6 +1067,36 @@ app.get("/api/badge/:id.svg", (req, res) => {
   res.set("Content-Type", "image/svg+xml");
   res.set("Cache-Control", "public, max-age=600");
   res.send(svg);
+});
+
+/* ------------------------- Public read-only API ------------------------- */
+/* Deliberately minimal: no API keys, no accounts, no billing — just the
+   latest cached snapshot for a steamid64, same trust model as the badge and
+   share-link routes already have (a steamid64 isn't a secret; whoever has it
+   can already see this exact total via /share/:id or the badge). Never
+   triggers a live Steam/Skinport fetch — this only ever reads what's already
+   in the snapshots table, so it can't be used to burn this server's Steam API
+   or Skinport rate budget. Sits behind its own rate limit, separate from the
+   general /api/ one, so heavy programmatic use and normal interactive
+   appraisals don't compete for the same budget. This is a courtesy endpoint,
+   not a committed contract — tighten or pull it if it's ever abused. */
+const publicApiLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "rate_limited", message: "Too many requests to the public API — wait a minute." },
+});
+
+app.get("/api/public/appraisal/:id", publicApiLimiter, (req, res) => {
+  if (!/^\d{17}$/.test(req.params.id)) return res.status(400).json({ error: "bad_steamid" });
+  const snap = db.prepare(
+    "SELECT persona, avatar, total, games_value as gamesValue, items_value as itemsValue, created_at as appraisedAt " +
+    "FROM snapshots WHERE steamid64 = ? ORDER BY created_at DESC LIMIT 1"
+  ).get(req.params.id);
+  if (!snap) return res.status(404).json({ error: "not_appraised", message: "No cached appraisal for this steamid64 — appraise it at vaultmark.tech first." });
+  res.set("Cache-Control", "public, max-age=300");
+  res.json({ steamid64: req.params.id, ...snap, shareUrl: `${req.protocol}://${req.get("host")}/share/${req.params.id}` });
 });
 
 /* ------------------------- OG share image ------------------------- */
@@ -1113,6 +1241,62 @@ app.get("/share/:id", (req, res) => {
 <script>location.replace(${JSON.stringify(appUrl)});</script>
 </head><body>
 <p>Redirecting to <a href="${appUrl}">the appraisal</a>…</p>
+</body></html>`);
+});
+
+/* ------------------------- Streamer overlay ------------------------- */
+/* A transparent-background page meant as an OBS/streaming-software browser
+   source — shows just persona + latest total, big and legible over game
+   footage. Polls a small JSON endpoint every 60s to stay current across a
+   long stream without a jarring full-page reload. */
+
+app.get("/api/overlay/:id.json", (req, res) => {
+  if (!/^\d{17}$/.test(req.params.id)) return res.status(400).json({ error: "bad_steamid" });
+  const snap = db.prepare(
+    "SELECT persona, total, created_at FROM snapshots WHERE steamid64 = ? ORDER BY created_at DESC LIMIT 1"
+  ).get(req.params.id);
+  if (!snap) return res.status(404).json({ error: "not_appraised_yet" });
+  res.set("Cache-Control", "no-store");
+  res.json({ persona: snap.persona, total: snap.total, updatedAt: snap.created_at });
+});
+
+app.get("/overlay/:id", (req, res) => {
+  if (!/^\d{17}$/.test(req.params.id)) return res.status(400).send("bad steamid");
+  res.set("Content-Type", "text/html");
+  res.send(`<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>VAULTMARK overlay</title>
+<style>
+html,body{background:transparent;margin:0;padding:0;overflow:hidden}
+body{font-family:system-ui,sans-serif;display:inline-flex;align-items:center;gap:14px;padding:14px 22px;
+  background:rgba(11,15,21,0.72);border-radius:14px;backdrop-filter:blur(4px)}
+.wordmark{font-weight:800;letter-spacing:.08em;font-size:15px;color:#63B0E3}
+.total{font-weight:800;font-size:34px;color:#E7EDF5;font-variant-numeric:tabular-nums}
+.persona{font-size:12px;color:#8894A8}
+#err{font-size:13px;color:#E06C6C;display:none}
+</style></head>
+<body>
+<div class="wordmark">VAULTMARK</div>
+<div>
+  <div class="total" id="total">—</div>
+  <div class="persona" id="persona"></div>
+</div>
+<div id="err">Not appraised yet</div>
+<script>
+async function tick() {
+  try {
+    const r = await fetch('/api/overlay/${req.params.id}.json');
+    if (!r.ok) { document.getElementById('err').style.display = 'block'; return; }
+    const d = await r.json();
+    document.getElementById('total').textContent = '$' + Math.round(d.total).toLocaleString('en-US');
+    document.getElementById('persona').textContent = d.persona || '';
+    document.getElementById('err').style.display = 'none';
+  } catch {}
+}
+tick();
+setInterval(tick, 60000);
+</script>
 </body></html>`);
 });
 

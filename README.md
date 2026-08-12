@@ -87,6 +87,8 @@ Wear tier (Field-Tested etc.) comes from the item description. Exact floats requ
 
 Client-rendered 1200×630 canvas → PNG download. Item icons are intentionally not drawn onto the canvas: Steam's CDN doesn't send CORS headers, so drawing them would taint the canvas and break `toDataURL`.
 
+Carries a scannable QR code (top-right) pointing at the same `/share/:steamid64` URL as "Copy link", so a screenshot or a printed card is still a live link, not just text. Vendored `davidshimjs/qrcodejs` (MIT, `public/vendor/qrcode.js`, same no-CDN pattern as jsPDF) draws synchronously into a throwaway off-DOM `<div>` — its canvas drawer paints in the constructor, no image-load wait needed — and that canvas is copied onto the share card via `drawImage`. The QR's dark modules are colored to match the card's own background (`#0B0F15`) rather than pure black, for visual cohesion; they only read correctly because the code sits on its own white backing square, same as any QR would need a light backing regardless of the dark color chosen.
+
 ## OG share link — the actual growth mechanism
 
 `https://yourdomain/share/:steamid64` is a real link-unfurl target: paste it into Discord, Twitter, or Slack and it shows up as a full card, not a bare URL. The "Copy link" button on the results page gives you this URL directly.
@@ -101,6 +103,22 @@ Unlike the client-side PNG download, the server-side render has no CORS restrict
 
 If no snapshot exists yet for a steamid64 (nobody's appraised it), `/api/og/:id.png` returns 404 and `/share/:id` redirects straight to the live appraisal instead of showing a broken image.
 
+## Streamer overlay
+
+`/overlay/:steamid64` — a transparent-background page meant as an OBS/Streamlabs Browser Source: persona + latest cached total, big and legible over game footage, polling `/api/overlay/:id.json` every 60s so it stays current across a long stream without a reload. Built early in this project but originally had no link to it anywhere in the app — findable only by typing the URL directly. It now has a "Copy link" row in the Share card panel, right under the badge snippet, same pattern as the other embeddable outputs on that panel.
+
+## Comparing two profiles
+
+The Compare panel fetches a *second* profile (resolve → profile → games → all five inventories, same endpoints the main appraisal uses) into `state.compare`, entirely separate from the primary `state` object, and renders both side by side. No new pricing/valuation logic — `totals()`, `liquiditySummary()`, and `allItems()` were generalized to take an optional `data` argument (defaulting to `state`, so every existing call site is unchanged) so the comparison column reuses the exact same math as the main summary panel instead of a parallel implementation that could drift out of sync.
+
+Deliberately lighter than the main appraisal: no reputation/ban check, no deals lookup, no step-by-step progress log, and nothing is written to the compared account's snapshot history — comparing someone else's profile shouldn't leave a trace on their history or leaderboard standing. Comparing the same steamid64 that's already the primary appraisal is rejected client-side rather than silently rendering two identical columns.
+
+## Public read-only API
+
+`GET /api/public/appraisal/:steamid64` — the latest cached appraisal for that account, as JSON (`persona`, `avatar`, `total`, `gamesValue`, `itemsValue`, `appraisedAt`, `shareUrl`). Built deliberately small: no API keys, no accounts, no billing, no per-caller quotas to manage — just a rate limit (30 req/min/IP, on top of the general 60 req/min/IP that already covers all of `/api/`) and a 404 if that steamid64 has never been appraised. It never triggers a live Steam/Skinport fetch — only ever reads the `snapshots` table already written by real appraisals — so it can't be used to burn this server's Steam API or Skinport rate budget, and stays fast even for a never-before-seen caller.
+
+Same trust model as the existing badge (`/api/badge/:id.svg`) and share-link (`/share/:id`) routes: a steamid64 isn't a secret, and whoever has it can already see this exact total through either of those. This endpoint doesn't expose anything new — it just makes the same number machine-readable. It's a courtesy endpoint, not a committed contract; tighten or pull it if it's ever abused.
+
 ## History, leaderboard and badge
 
 Every completed appraisal writes a row to the `snapshots` table (`steamid64`, totals, timestamp). Two things read from it:
@@ -109,6 +127,12 @@ Every completed appraisal writes a row to the `snapshots` table (`steamid64`, to
 - `GET /api/leaderboard` — the latest snapshot per steamid64 with `public = 1`, ranked by total. Snapshots only get `public = 1` if the person checks "Show this appraisal on the public leaderboard" after appraising — appearing on a global "richest accounts" list is a bigger exposure than a private history line, so it's opt-in, not opt-out. There's currently no way to un-publish from the UI; that needs a moderation/delete route if it becomes a real complaint.
 
 `GET /api/badge/:steamid64.svg` renders a shields.io-style badge (hand-built SVG, no image-rendering dependency) showing that account's latest total — embed it anywhere that accepts a hotlinked image (forum signature, Discord bio). It shows whatever the latest snapshot says regardless of that snapshot's public flag, on the same trust model as a profile URL: only someone who already has the link can fetch it.
+
+## Per-item price history
+
+Separate from the whole-portfolio snapshot above — this tracks individual items (e.g. "AK-47 | Redline (Field-Tested)"), not accounts. Logging every item on every 10-minute Skinport refresh would be tens of thousands of rows a day; instead, one row per `(appid, item, day)` is upserted opportunistically whenever that item is actually priced during a real appraisal — piggybacking on requests already being made, no extra API calls, and bounded to (distinct items ever appraised) × (days) rather than the full catalog × refresh interval.
+
+`GET /api/item-history/:appid/:name` returns up to 90 days of `{date, price}` rows. On the Items panel, a "Price history" toggle on each priced card lazily fetches this and renders a small sparkline + % change — same `sparklineSvg()` helper the account-level history sparkline uses, generalized to take a value key. New deployments (or rarely-appraised items) show "not enough data yet" until at least two distinct days have been recorded — an honest empty state instead of a fake flat line.
 
 ## Selling what you just priced — and whether it'll actually sell
 
@@ -119,6 +143,18 @@ A price alone doesn't tell you whether anyone's buying. Skinport's `quantity` (h
 No affiliate program is wired in — VAULTMARK doesn't have the traffic Skinport's program requires yet (see their published bar: 5,000+ YouTube subs, 50+ avg Twitch viewers, or 5,000+ website views). Worth revisiting once there's real traffic.
 
 **Scope note:** all of the above is about selling individual tradeable items through markets built for that (Skinport, Steam Community Market) — completely legitimate, same as any skin trade. Selling a whole Steam *account* is a different thing: it violates Steam's Subscriber Agreement and is a well-known scam/chargeback vector on third-party account marketplaces. This app appraises accounts; it deliberately doesn't help transfer them.
+
+## CS2 collections, stickers and charms
+
+Steam's raw inventory payload carries collection/sticker/charm data as unstructured lines inside each item's `descriptions` array, keyed by a stable `name` field rather than free text — `itemset_name` for the collection ("The Sport & Field Collection"), `sticker_info` / `keychain_info` as an HTML block ending in a plain summary line ("Sticker: Press Start, Lock In"). `parseCraftedDetails()` in `server.js` reads these directly instead of pattern-matching prose.
+
+One naming trap worth flagging: Steam's own inventory HTML labels a charm/keychain as `"Sticker Slab: X"`, but the tradeable market listing for that same item is `"Charm | X"` — the two names don't match. This was confirmed directly against Skinport's live catalog before writing any pricing code, not assumed.
+
+Stickers and charms are separate catalog entries under the same appid, so they're priced for free off the Skinport map already fetched for the base item (`Sticker | {name}` / `Charm | {name}`) — no extra requests. Their value is folded into the item's own `priceMarket` (it's real value sitting in that inventory slot — a stickered AK is worth more than Skinport's price for the bare skin), but kept separately as `craftedValue` / `craftedPriced` so the UI can label exactly where the extra dollars came from instead of silently inflating a number. Not every sticker is listed on Skinport (very new or low-volume ones show up with no price and are excluded, the same honesty pattern used everywhere else in this app rather than guessing).
+
+**Stacking correctness:** stickers/charms don't change `market_hash_name`, so Steam's own inventory groups a stickered copy and a bare copy of the same skin under one name. The naive fix — stacking purely by name — would let a decorated copy collide into a larger bare-item stack, with whichever asset's description was seen first winning and the rest silently losing their sticker data. Confirmed against a real inventory (a "6x M4A1-S | Fade (FN)" stack was actually 5 bare copies plus 1 carrying real sticker value). Fixed by keying the stack by `name + classid_instanceid` instead of `name` alone, but only for items that actually carry stickers/charms — every other item across every game still stacks purely by name, unchanged.
+
+The Items panel can filter by collection (dropdown populated from whatever collections are actually present in that inventory).
 
 ## Running this for real
 

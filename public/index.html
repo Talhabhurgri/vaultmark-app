@@ -66,6 +66,15 @@ select { background:var(--panel2); color:var(--text); border:1px solid var(--lin
 .mainbtn { background:var(--acc); color:#0A121B; border:none; border-radius:12px; padding:14px 24px; font-family:'Chakra Petch',sans-serif; font-weight:700; letter-spacing:.05em; transition:filter .15s; }
 .mainbtn:hover { filter:brightness(1.12); }
 .mainbtn:disabled { filter:saturate(.3) brightness(.7); cursor:default; }
+.starbtn { background:var(--panel); border:1px solid var(--line); color:var(--dim); border-radius:12px; font-size:20px; width:52px; flex:none; transition:border-color .15s,color .15s; }
+.starbtn:hover { border-color:var(--acc); color:var(--acc); }
+.starbtn[aria-pressed="true"] { color:#F0C24B; border-color:#F0C24B55; }
+.watchrow { display:flex; align-items:center; gap:10px; padding:7px 2px; border-bottom:1px solid var(--line); }
+.watchrow:last-child { border-bottom:none; }
+.watchname { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; color:var(--text); font-size:13.5px; }
+.watchname:hover { color:var(--acc); }
+.watchremove { background:none; border:none; color:var(--dim); font-size:16px; padding:2px 6px; line-height:1; }
+.watchremove:hover { color:#E06C6C; }
 .parsehint { margin-top:10px; font-size:12.5px; color:var(--acc); text-align:left; min-height:18px; }
 .parsehint.bad { color:#E06C6C; }
 .steps { margin-top:18px; text-align:left; font-size:12.5px; color:var(--mut); }
@@ -147,6 +156,19 @@ select { background:var(--panel2); color:var(--text); border:1px solid var(--lin
 .liqpill.liquid { color:#7BC97F; border-color:#7BC97F55; }
 .liqpill.thin { color:#D9A05B; border-color:#D9A05B55; }
 .liqpill.illiquid { color:#E06C6C; border-color:#E06C6C55; }
+.collpill { color:#9C8CE0; border-color:#9C8CE055; }
+.craftpill { display:inline-block; margin-top:6px; font-size:10.5px; border:1px solid #D9A05B55; color:#D9A05B; border-radius:99px; padding:2px 8px; }
+.itemhistbtn { margin-top:8px; align-self:flex-start; font-size:11px; padding:3px 10px; }
+.itemhist { margin-top:8px; font-size:11.5px; color:var(--mut); }
+.itemhist .mono { font-size:12px; }
+.compare-cols { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:16px; }
+.compare-col { border:1px solid var(--line); border-radius:12px; padding:16px; }
+.compare-col .sum-id { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.compare-col .avatar { width:36px; height:36px; border-radius:8px; }
+.compare-row-line { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px; }
+.compare-row-line:last-child { border-bottom:none; }
+.compare-row-line b.win { color:#7BC97F; }
+@media (max-width:640px) { .compare-cols { grid-template-columns:1fr; } }
 .liqsummary { display:flex; gap:14px; flex-wrap:wrap; margin-top:8px; font-size:12.5px; color:var(--mut); }
 .liqsummary b { font-family:'JetBrains Mono',monospace; }
 .liqsummary .liquid b { color:#7BC97F; }
@@ -288,6 +310,7 @@ select { background:var(--panel2); color:var(--text); border:1px solid var(--lin
   <div class="inputrow">
     <input id="q" placeholder="steamcommunity.com/id/gaben  ·  76561197960287930  ·  STEAM_0:0:11101" spellcheck="false" aria-label="Steam profile">
     <button class="mainbtn" id="go">Appraise</button>
+    <button class="starbtn" id="watchToggle" title="Save to watchlist" aria-pressed="false" style="display:none">☆</button>
   </div>
   <div class="parsehint mono" id="hint"></div>
   <div class="keywarn" id="keywarn">Server has no Steam API key yet — copy <b>.env.example</b> to <b>.env</b>, add your key, restart. Inventories work without a key, but vanity names, profiles and game libraries need one.</div>
@@ -339,6 +362,13 @@ select { background:var(--panel2); color:var(--text); border:1px solid var(--lin
   </div>
 </section>
 
+<section class="lbwrap" id="watchSection" style="display:none">
+  <div class="panel">
+    <div class="panel-head"><h2>★ Your watchlist</h2><span class="fine" style="margin:0">saved on this device only</span></div>
+    <div id="watchBody"></div>
+  </div>
+</section>
+
 <section class="lbwrap" id="lbSection" style="display:none">
   <div class="panel">
     <div class="panel-head"><h2>🏆 Public leaderboard</h2><span class="fine" style="margin:0">opt-in only</span></div>
@@ -355,6 +385,7 @@ select { background:var(--panel2); color:var(--text); border:1px solid var(--lin
     <button id="navDeals" style="display:none">Deals</button>
     <button id="navShare">Share card</button>
     <button id="navReport">Report</button>
+    <button id="navCompare">Compare</button>
   </nav>
 
   <div class="banwarn" id="banWarn"></div>
@@ -399,6 +430,7 @@ select { background:var(--panel2); color:var(--text); border:1px solid var(--lin
   <section class="panel">
     <div class="panel-head tabs-head">
       <div class="tabs" id="tabs" role="tablist"></div>
+      <select id="collectionFilter" aria-label="Filter by collection" style="display:none"></select>
       <select id="sort" aria-label="Sort items">
         <option value="price">Sort: price</option>
         <option value="rarity">Sort: rarity</option>
@@ -440,6 +472,11 @@ select { background:var(--panel2); color:var(--text); border:1px solid var(--lin
       <button class="ghostbtn" id="copyBadge">Copy</button>
     </div>
     <p class="fine">Embeddable badge — drop it in a forum signature or Discord profile. Updates automatically whenever this steamid is re-appraised.</p>
+    <div class="badgerow">
+      <code class="badgesnippet mono" id="overlayLinkSnippet"></code>
+      <button class="ghostbtn" id="copyOverlayLink">Copy link</button>
+    </div>
+    <p class="fine">Streamer overlay — a transparent-background page showing persona + latest total, sized to drop straight into OBS/Streamlabs as a Browser Source. Refreshes itself every 60s, no re-adding needed mid-stream.</p>
   </section>
 
   <section class="panel" id="reportPanel">
@@ -449,12 +486,24 @@ select { background:var(--panel2); color:var(--text); border:1px solid var(--lin
     </div>
     <p class="fine">A detailed, itemized document — every priced item, game library, ban status and liquidity notes — for trade partners or your own records. Amounts are always in USD regardless of the currency shown above, so every symbol renders correctly in the PDF.</p>
   </section>
+
+  <section class="panel" id="comparePanel">
+    <div class="panel-head"><h2>Compare against another profile</h2></div>
+    <p class="fine">Appraises a second Steam profile and lines it up against the one above. Nothing is saved to that account's history unless they appraise it themselves.</p>
+    <div class="inputrow">
+      <input type="text" id="compareInput" placeholder="steamcommunity.com/id/gaben · 76561197960287930 · STEAM_0:0:11101" spellcheck="false" aria-label="Second Steam profile">
+      <button class="mainbtn" id="compareGo">Compare</button>
+    </div>
+    <p class="fine" id="compareStatus"></p>
+    <div id="compareBody"></div>
+  </section>
 </main>
 
 <footer class="foot">prices: skinport → steam market fallback (items) · steam store (games) · fx: open.er-api.com · inventories cached 30 min server-side · <a href="/privacy" style="color:inherit">Privacy Policy</a></footer>
 
 <script src="/vendor/jspdf.umd.min.js"></script>
 <script src="/vendor/jspdf.plugin.autotable.min.js"></script>
+<script src="/vendor/qrcode.js"></script>
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -476,12 +525,69 @@ const state = {
   rates: { USD: 1 },
   tab: 730,
   rarityFilter: null,
+  collectionFilter: null,
   sort: "price",
   fetchedAt: null,
   running: false,
   lbPosted: false,
   deals: null,
+  compare: null,
+  compareRunning: false,
 };
+
+/* ---------- watchlist (localStorage only — nothing server-side) ---------- */
+const WATCHLIST_KEY = "vaultmark_watchlist";
+function getWatchlist() {
+  try { return JSON.parse(localStorage.getItem(WATCHLIST_KEY) || "[]"); } catch { return []; }
+}
+function saveWatchlist(list) {
+  try { localStorage.setItem(WATCHLIST_KEY, JSON.stringify(list)); } catch { /* storage disabled/full — fail silently */ }
+}
+function isWatched(steamid64) {
+  return getWatchlist().some((w) => w.steamid64 === steamid64);
+}
+function toggleWatch(steamid64, persona, avatar) {
+  let list = getWatchlist();
+  if (list.some((w) => w.steamid64 === steamid64)) {
+    list = list.filter((w) => w.steamid64 !== steamid64);
+  } else {
+    list.unshift({ steamid64, persona: persona || steamid64, avatar: avatar || null, addedAt: Date.now() });
+    list = list.slice(0, 25); // keep it from growing forever
+  }
+  saveWatchlist(list);
+  return list;
+}
+function renderWatchlist() {
+  const list = getWatchlist();
+  const section = $("watchSection"), body = $("watchBody");
+  if (!list.length) { section.style.display = "none"; return; }
+  section.style.display = "";
+  body.innerHTML = "";
+  for (const w of list) {
+    const row = el("div", "watchrow");
+    const av = document.createElement("img");
+    av.className = "lbavatar"; av.alt = ""; av.loading = "lazy";
+    if (w.avatar) av.src = w.avatar;
+    row.appendChild(av);
+    const name = el("span", "watchname", w.persona);
+    name.onclick = () => { $("q").value = w.steamid64; appraise(false); };
+    row.appendChild(name);
+    const rm = el("button", "watchremove", "✕");
+    rm.title = "Remove from watchlist";
+    rm.onclick = () => { toggleWatch(w.steamid64); renderWatchlist(); if (state.steamid64 === w.steamid64) updateWatchButton(); };
+    row.appendChild(rm);
+    body.appendChild(row);
+  }
+}
+function updateWatchButton() {
+  const btn = $("watchToggle");
+  if (!state.steamid64) { btn.style.display = "none"; return; }
+  btn.style.display = "";
+  const watched = isWatched(state.steamid64);
+  btn.textContent = watched ? "★" : "☆";
+  btn.setAttribute("aria-pressed", String(watched));
+  btn.title = watched ? "Remove from watchlist" : "Save to watchlist";
+}
 
 /* ---------- SteamID parsing (client-side, for the live hint only) ---------- */
 const B = 76561197960265728n;
@@ -526,20 +632,20 @@ function step(text, isErr) {
 }
 
 /* ---------- derived data ---------- */
-function allItems() {
+function allItems(data = state) {
   const out = [];
-  for (const inv of Object.values(state.inventories))
+  for (const inv of Object.values(data.inventories))
     if (inv.status === "ok") out.push(...inv.items);
   return out;
 }
-function totals() {
-  const inv = allItems().reduce((a, i) => a + i.priceMarket * i.qty, 0);
-  const games = state.games?.status === "ok" ? state.games.games.reduce((a, g) => a + (g.price || 0), 0) : 0;
+function totals(data = state) {
+  const inv = allItems(data).reduce((a, i) => a + i.priceMarket * i.qty, 0);
+  const games = data.games?.status === "ok" ? data.games.games.reduce((a, g) => a + (g.price || 0), 0) : 0;
   return { inv, games, total: inv + games };
 }
-function liquiditySummary() {
+function liquiditySummary(data = state) {
   const out = { liquid: 0, thin: 0, illiquid: 0, unrated: 0 };
-  for (const it of allItems()) {
+  for (const it of allItems(data)) {
     const v = it.priceMarket * it.qty;
     if (!it.priced) continue;
     const level = it.liquidity?.level || "unrated";
@@ -597,7 +703,11 @@ async function appraise(clearCacheFirst) {
   $("go").textContent = "Appraising…";
   $("steps").innerHTML = "";
   state.rarityFilter = null;
+  state.collectionFilter = null;
   state.inventories = {};
+  state.compare = null;
+  $("compareBody").innerHTML = "";
+  $("compareStatus").textContent = "";
 
   try {
     // 1. resolve
@@ -663,6 +773,14 @@ async function appraise(clearCacheFirst) {
     $("lbOptIn").disabled = false;
     $("lbStatus").textContent = "";
     renderAll();
+    updateWatchButton();
+    // Keep a watched entry's cached persona/avatar fresh across re-appraisals.
+    if (isWatched(state.steamid64)) {
+      const list = getWatchlist().map((w) => w.steamid64 === state.steamid64
+        ? { ...w, persona: state.profile?.persona || w.persona, avatar: state.profile?.avatar || w.avatar }
+        : w);
+      saveWatchlist(list);
+    }
     $("results").style.display = "flex";
     $("results").scrollIntoView({ behavior: "smooth", block: "start" });
     await saveSnapshot(false);   // silent, private — powers this steamid's own history
@@ -672,6 +790,90 @@ async function appraise(clearCacheFirst) {
     $("go").disabled = false;
     $("go").textContent = "Appraise";
   }
+}
+
+/* ---------- compare two profiles ---------- */
+// Deliberately a separate, lighter fetch than appraise(): no reputation, no
+// deals, no step-by-step log, no snapshot write — just enough to total up a
+// second profile and line it up against the one already on screen. Reuses
+// the same read endpoints so it's not a special-cased code path server-side.
+async function fetchProfileBundle(inputStr, region) {
+  const r = await api("/api/resolve?input=" + encodeURIComponent(inputStr));
+  if (!r.steamid64) return { error: r.error === "vanity_not_found" ? "No Steam account with that vanity name." : "Couldn't resolve that input." };
+
+  const prof = await api("/api/profile/" + r.steamid64);
+  const profile = prof.persona ? prof : { steamid64: r.steamid64, persona: r.steamid64, avatar: null };
+  const games = await api("/api/games/" + r.steamid64 + "?cc=" + region);
+  const inventories = {};
+  for (const a of APPS) inventories[a.appid] = await api(`/api/inventory/${r.steamid64}/${a.appid}`);
+  return { steamid64: r.steamid64, profile, games, inventories };
+}
+
+async function compareProfile() {
+  if (state.compareRunning) return;
+  if (!state.steamid64) { $("compareStatus").textContent = "Appraise a profile above first."; return; }
+  const input = $("compareInput").value.trim();
+  const parsed = parseSteamInput(input);
+  if (!parsed || parsed.type === "invalid") { $("compareStatus").textContent = "Not a recognized profile URL, vanity name, or SteamID."; return; }
+
+  state.compareRunning = true;
+  $("compareGo").disabled = true;
+  $("compareGo").textContent = "Comparing…";
+  $("compareStatus").textContent = "";
+  try {
+    const bundle = await fetchProfileBundle(input, state.region);
+    if (bundle.error) { $("compareStatus").textContent = bundle.error; return; }
+    if (bundle.steamid64 === state.steamid64) { $("compareStatus").textContent = "That's the same profile that's already appraised above."; return; }
+    state.compare = bundle;
+    renderCompare();
+  } finally {
+    state.compareRunning = false;
+    $("compareGo").disabled = false;
+    $("compareGo").textContent = "Compare";
+  }
+}
+
+function compareColumn(label, profile, data) {
+  const t = totals(data);
+  const liq = liquiditySummary(data);
+  const col = el("div", "compare-col");
+  const idRow = el("div", "sum-id");
+  if (profile?.avatar) { const img = document.createElement("img"); img.className = "avatar"; img.src = profile.avatar; img.alt = ""; idRow.appendChild(img); }
+  const nameWrap = el("div");
+  nameWrap.appendChild(el("div", null, profile?.persona || label));
+  nameWrap.appendChild(el("div", "fine mono", profile?.steamid64 || ""));
+  idRow.appendChild(nameWrap);
+  col.appendChild(idRow);
+
+  const lines = [
+    ["Total appraisal", money(t.total)],
+    ["Game library", data.games?.status === "ok" ? money(t.games) : "—"],
+    ["Items", money(t.inv)],
+    ["Liquid", money(liq.liquid)],
+    ["Thin market", money(liq.thin)],
+    ["Illiquid", money(liq.illiquid)],
+  ];
+  for (const [k, v] of lines) {
+    const row = el("div", "compare-row-line");
+    row.appendChild(el("span", null, k));
+    row.appendChild(el("b", "mono", v));
+    col.appendChild(row);
+  }
+  return { col, total: t.total };
+}
+
+function renderCompare() {
+  const body = $("compareBody");
+  body.innerHTML = "";
+  if (!state.compare) return;
+  const cols = el("div", "compare-cols");
+  const a = compareColumn("This profile", state.profile, state);
+  const b = compareColumn("Compared profile", state.compare.profile, state.compare);
+  if (a.total !== b.total) (a.total > b.total ? a : b).col.querySelector(".compare-row-line b").classList.add("win");
+  cols.appendChild(a.col);
+  cols.appendChild(b.col);
+  body.appendChild(cols);
+  $("compareStatus").textContent = "";
 }
 
 /* ---------- snapshots, history, leaderboard, badge ---------- */
@@ -699,13 +901,13 @@ async function loadHistory() {
   renderHistory(r.history || []);
 }
 
-function sparklineSvg(points, w, h) {
+function sparklineSvg(points, w, h, key = "total") {
   if (points.length < 2) return "";
-  const vals = points.map((p) => p.total);
+  const vals = points.map((p) => p[key]);
   const min = Math.min(...vals), max = Math.max(...vals);
   const range = max - min || 1;
   const step = w / (points.length - 1);
-  const coords = points.map((p, i) => [i * step, h - ((p.total - min) / range) * (h - 6) - 3]);
+  const coords = points.map((p, i) => [i * step, h - ((p[key] - min) / range) * (h - 6) - 3]);
   const path = coords.map(([x, y], i) => (i === 0 ? "M" : "L") + x.toFixed(1) + "," + y.toFixed(1)).join(" ");
   const [lx, ly] = coords[coords.length - 1];
   return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><path d="${path}" fill="none" stroke="#63B0E3" stroke-width="2"/><circle cx="${lx}" cy="${ly}" r="3" fill="#63B0E3"/></svg>`;
@@ -736,6 +938,46 @@ function renderHistory(history) {
   $("historyFine").textContent = history.length + " appraisals since " + new Date(first.at).toLocaleDateString();
 }
 
+const itemHistCache = new Map();
+async function toggleItemHistory(appid, name, btn, box) {
+  const open = box.style.display !== "none";
+  if (open) { box.style.display = "none"; btn.textContent = "Price history ▾"; return; }
+  box.style.display = "";
+  btn.textContent = "Price history ▴";
+  if (box.dataset.loaded) return;
+  box.textContent = "Loading…";
+  const cacheKey = appid + ":" + name;
+  let history = itemHistCache.get(cacheKey);
+  if (!history) {
+    try {
+      const r = await api("/api/item-history/" + appid + "/" + encodeURIComponent(name));
+      history = r.history || [];
+      itemHistCache.set(cacheKey, history);
+    } catch { history = []; }
+  }
+  box.dataset.loaded = "1";
+  box.innerHTML = "";
+  if (history.length < 2) {
+    box.appendChild(el("span", null, "Not enough data yet — this fills in the more this item gets appraised across visits."));
+    return;
+  }
+  const first = history[0], last = history[history.length - 1];
+  const change = last.price - first.price;
+  const pct = first.price > 0 ? (change / first.price) * 100 : 0;
+  const row = el("div"); row.style.display = "flex"; row.style.alignItems = "center"; row.style.gap = "12px";
+  const spark = el("div"); spark.innerHTML = sparklineSvg(history, 160, 32, "price");
+  row.appendChild(spark);
+  const summary = el("div", "mono");
+  const sign = change >= 0 ? "+" : "";
+  summary.appendChild(el("span", null, money(first.price) + " → " + money(last.price) + " "));
+  const chg = el("span", null, `(${sign}${money(change)}, ${sign}${pct.toFixed(1)}%)`);
+  chg.style.color = change >= 0 ? "#7BC97F" : "#E06C6C";
+  summary.appendChild(chg);
+  row.appendChild(summary);
+  box.appendChild(row);
+  box.appendChild(el("div", "fine", history.length + " days tracked since " + new Date(first.date).toLocaleDateString() + " — from real appraisals, not a continuous feed."));
+}
+
 async function loadLeaderboard() {
   const r = await api("/api/leaderboard");
   const rows = r.leaderboard || [];
@@ -764,6 +1006,7 @@ function renderBadge() {
   $("badgePreview").removeAttribute("height");
   $("badgeSnippet").textContent = `[![VAULTMARK](${url})](${location.origin}/?q=${state.steamid64})`;
   $("shareLinkSnippet").textContent = location.origin + "/share/" + state.steamid64;
+  $("overlayLinkSnippet").textContent = location.origin + "/overlay/" + state.steamid64;
 }
 
 /* ---------- rendering ---------- */
@@ -899,7 +1142,7 @@ function renderTabs() {
       inv?.status === "private" ? "private" :
       inv?.status === "rate_limited" ? "429" : "—");
     b.appendChild(val);
-    b.onclick = () => { state.tab = a.appid; renderTabs(); renderInventory(); };
+    b.onclick = () => { state.tab = a.appid; state.collectionFilter = null; renderTabs(); renderInventory(); };
     tabs.appendChild(b);
   }
 }
@@ -930,8 +1173,27 @@ function renderInventory() {
     return;
   }
 
+  const collSel = $("collectionFilter");
+  const collections = [...new Set(inv.items.map((i) => i.collection).filter(Boolean))].sort();
+  if (collections.length) {
+    collSel.style.display = "";
+    collSel.innerHTML = "";
+    const allOpt = document.createElement("option");
+    allOpt.value = ""; allOpt.textContent = "All collections";
+    collSel.appendChild(allOpt);
+    for (const c of collections) {
+      const o = document.createElement("option");
+      o.value = c; o.textContent = c;
+      collSel.appendChild(o);
+    }
+    collSel.value = state.collectionFilter || "";
+  } else {
+    collSel.style.display = "none";
+  }
+
   let list = inv.items;
   if (state.rarityFilter) list = list.filter((i) => i.rarity === state.rarityFilter);
+  if (state.collectionFilter) list = list.filter((i) => i.collection === state.collectionFilter);
   list = [...list].sort((a, b) =>
     state.sort === "price" ? b.priceMarket * b.qty - a.priceMarket * a.qty :
     state.sort === "rarity" ? (a.rarity === b.rarity ? b.priceMarket - a.priceMarket : a.rarity.localeCompare(b.rarity)) :
@@ -960,6 +1222,11 @@ function renderInventory() {
     rp.style.borderColor = it.rarityColor + "55";
     meta.appendChild(rp);
     if (it.wear) meta.appendChild(el("span", "pill", it.wear));
+    if (it.collection) {
+      const cp = el("span", "pill collpill", it.collection.replace(/ Collection$/, ""));
+      cp.title = it.collection;
+      meta.appendChild(cp);
+    }
     if (it.hold) {
       const hp = el("span", "pill", "trade hold");
       hp.title = "Restriction lifts " + new Date(it.hold).toLocaleDateString();
@@ -988,6 +1255,14 @@ function renderInventory() {
         it.hold ? "trade-held — not yet marketable" : "not marketable"));
     }
     bodyEl.appendChild(prices);
+    if ((it.stickers?.length || it.charms?.length)) {
+      const names = [...(it.stickers || []), ...(it.charms || [])].join(", ");
+      const cp = el("span", "pill craftpill", it.craftedValue > 0 ? "+ " + money(it.craftedValue) + " stickers/charm" : "stickers/charm (unpriced)");
+      cp.title = (it.craftedValue > 0
+        ? "Priced: " + it.craftedPriced.map((c) => `${c.label} (${money(c.price)})`).join(", ") + ". "
+        : "") + "On this item: " + names + (it.craftedValue > 0 ? "" : " — not found in the Skinport catalog, so not counted toward the price.");
+      bodyEl.appendChild(cp);
+    }
     if (it.priced && it.sellLinks && it.sellLinks.length) {
       const row = el("div", "selllinks");
       for (const link of it.sellLinks) {
@@ -998,6 +1273,14 @@ function renderInventory() {
         row.appendChild(a);
       }
       bodyEl.appendChild(row);
+    }
+    if (it.priced) {
+      const histBtn = el("button", "ghostbtn itemhistbtn", "Price history ▾");
+      const histBox = el("div", "itemhist");
+      histBox.style.display = "none";
+      histBtn.onclick = () => toggleItemHistory(state.tab, it.name, histBtn, histBox);
+      bodyEl.appendChild(histBtn);
+      bodyEl.appendChild(histBox);
     }
     card.appendChild(bodyEl);
     grid.appendChild(card);
@@ -1192,6 +1475,33 @@ function drawShareCard() {
 
   ctx.fillStyle = "#3A4557"; ctx.font = "400 18px " + mono;
   ctx.fillText("appraised " + new Date().toISOString().slice(0, 10), 64, H - 32);
+
+  drawShareQr(ctx, W);
+}
+
+// Renders synchronously — QRCode's canvas drawer paints in the constructor,
+// no image-load wait needed (only the legacy-Android <img> fallback path is
+// async, and this never touches it). A throwaway off-DOM container holds the
+// library's own <canvas>, which gets copied onto the share card and discarded.
+function drawShareQr(ctx, W) {
+  if (!state.steamid64 || typeof QRCode === "undefined") return;
+  const size = 104, x = W - 64 - size, y = 40;
+  const holder = document.createElement("div");
+  new QRCode(holder, {
+    text: location.origin + "/share/" + state.steamid64,
+    width: size, height: size,
+    colorDark: "#0B0F15", colorLight: "#FFFFFF",
+    correctLevel: QRCode.CorrectLevel.M,
+  });
+  const qrCanvas = holder.querySelector("canvas");
+  if (!qrCanvas) return;
+  ctx.fillStyle = "#FFFFFF";
+  rr(ctx, x - 10, y - 10, size + 20, size + 20, 8); ctx.fill();
+  ctx.drawImage(qrCanvas, x, y, size, size);
+  ctx.fillStyle = "#5B6779"; ctx.font = "400 13px 'JetBrains Mono', ui-monospace, monospace";
+  ctx.textAlign = "center";
+  ctx.fillText("scan to view", x + size / 2, y + size + 24);
+  ctx.textAlign = "left";
 }
 
 /* ---------- PDF report ---------- */
@@ -1463,7 +1773,14 @@ $("q").addEventListener("input", () => {
 $("q").addEventListener("keydown", (e) => { if (e.key === "Enter") appraise(false); });
 $("go").addEventListener("click", () => appraise(false));
 $("refresh").addEventListener("click", () => appraise(true));
+$("watchToggle").addEventListener("click", () => {
+  if (!state.steamid64) return;
+  toggleWatch(state.steamid64, state.profile?.persona, state.profile?.avatar);
+  updateWatchButton();
+  renderWatchlist();
+});
 $("sort").addEventListener("change", (e) => { state.sort = e.target.value; renderInventory(); });
+$("collectionFilter").addEventListener("change", (e) => { state.collectionFilter = e.target.value || null; renderInventory(); });
 $("cur").addEventListener("change", (e) => { state.currency = e.target.value; renderAll(); });
 $("region").addEventListener("change", async (e) => {
   state.region = e.target.value;
@@ -1480,6 +1797,9 @@ $("navHistory").addEventListener("click", () => jumpTo("historyPanel"));
 $("navDeals").addEventListener("click", () => jumpTo("dealsPanel"));
 $("navShare").addEventListener("click", () => jumpTo("sharePanel"));
 $("navReport").addEventListener("click", () => jumpTo("reportPanel"));
+$("navCompare").addEventListener("click", () => jumpTo("comparePanel"));
+$("compareGo").addEventListener("click", () => compareProfile());
+$("compareInput").addEventListener("keydown", (e) => { if (e.key === "Enter") compareProfile(); });
 
 // Replace with the real inbox that should receive contact-form messages.
 const CONTACT_EMAIL = "talhabhurgri8@gmail.com";
@@ -1545,6 +1865,11 @@ $("copyShareLink").addEventListener("click", () => {
   $("copyShareLink").textContent = "Copied";
   setTimeout(() => { $("copyShareLink").textContent = "Copy link"; }, 1500);
 });
+$("copyOverlayLink").addEventListener("click", () => {
+  navigator.clipboard?.writeText($("overlayLinkSnippet").textContent);
+  $("copyOverlayLink").textContent = "Copied";
+  setTimeout(() => { $("copyOverlayLink").textContent = "Copy link"; }, 1500);
+});
 
 /* Steam prices the same game very differently by region ($39.99 in the US
    store, $18.99 in Pakistan's, ₹1,799 in India's — all verified live, not
@@ -1585,6 +1910,7 @@ fetch("/api/track", {
     regionSel.value = detected;
   }
 
+  renderWatchlist();
   const [health, rates] = await Promise.all([api("/api/health"), api("/api/rates"), loadLeaderboard()]);
   if (health.keyConfigured === false) $("keywarn").style.display = "block";
   if (rates.rates) {
