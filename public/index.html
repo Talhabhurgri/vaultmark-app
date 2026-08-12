@@ -4,6 +4,41 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>VAULTMARK — Steam portfolio appraiser</title>
+<meta name="description" content="Paste any Steam profile and get a real appraisal — game library plus CS2, Dota 2, TF2, Rust and Steam Community item values from live Skinport and Steam Market prices. Free, no login, no Steam credentials touched.">
+<link rel="canonical" href="https://vaultmark.tech/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230B0F15'/%3E%3Ctext x='50' y='68' font-family='Georgia,serif' font-size='58' font-weight='bold' fill='%2363B0E3' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="VAULTMARK — Steam portfolio appraiser">
+<meta property="og:description" content="Paste any Steam profile and get a real appraisal — game library plus CS2, Dota 2, TF2, Rust and Steam Community item values from live market prices.">
+<meta property="og:url" content="https://vaultmark.tech/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="VAULTMARK — Steam portfolio appraiser">
+<meta name="twitter:description" content="Paste any Steam profile and get a real appraisal — game library plus CS2, Dota 2, TF2, Rust and Steam Community item values from live market prices.">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "VAULTMARK",
+  "url": "https://vaultmark.tech/",
+  "description": "Steam portfolio appraiser — game library plus CS2, Dota 2, TF2, Rust and Steam Community item values from live Skinport and Steam Market prices.",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Any",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+
+<!-- Google AdSense: sign up at adsense.google.com, add + verify this site
+     (it'll want to check for a privacy policy — the Guide & FAQ panel now
+     has one), wait for approval, then swap ca-pub-XXXXXXXXXXXXXXXX below
+     for your real publisher ID and uncomment. Leaving it commented and
+     placeholder'd until then avoids a pointless network request to Google
+     for an ID that isn't approved yet. -->
+<!--
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
+-->
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -104,8 +139,10 @@ select { background:var(--panel2); color:var(--text); border:1px solid var(--lin
 .price { font-size:15px; font-family:'JetBrains Mono',monospace; }
 .price.sug { color:var(--dim); font-size:12.5px; }
 .unpriced { color:var(--dim); font-size:11.5px; }
-.selllink { margin-left:auto; font-size:11px; color:var(--dim); text-decoration:none; border:1px solid var(--line); border-radius:7px; padding:3px 9px; align-self:center; transition:border-color .15s,color .15s; }
+.selllink { font-size:11px; color:var(--dim); text-decoration:none; border:1px solid var(--line); border-radius:7px; padding:3px 9px; transition:border-color .15s,color .15s; }
 .selllink:hover { border-color:var(--acc); color:var(--acc); }
+.selllink.best { border-color:var(--acc); color:var(--acc); background:#63B0E31A; font-weight:600; }
+.selllinks { display:flex; flex-wrap:wrap; gap:6px; }
 .liqpill { font-size:9.5px; }
 .liqpill.liquid { color:#7BC97F; border-color:#7BC97F55; }
 .liqpill.thin { color:#D9A05B; border-color:#D9A05B55; }
@@ -286,6 +323,17 @@ select { background:var(--panel2); color:var(--text); border:1px solid var(--lin
     <details class="faqitem"><summary>Do you store my Steam password or login?</summary><p>No — nothing here ever asks for or touches your Steam credentials. Everything is read from Steam's own public APIs and endpoints, the same data anyone could look up about a public profile.</p></details>
     <details class="faqitem"><summary>Can I be removed from the public leaderboard?</summary><p>The leaderboard is opt-in per appraisal (unchecked by default) — but once posted, there's currently no self-serve way to remove it. Use the contact form below and it'll be handled manually.</p></details>
     <details class="faqitem"><summary>How do I share my appraisal so it shows a preview card on Discord/Twitter?</summary><p>Use the <b>"Copy link"</b> button in the Share Card section — it copies a <code>/share/&lt;steamid&gt;</code> link, not the plain site URL. That specific link is what carries the image/title data Discord and Twitter read to build a preview card; the regular homepage link won't show one. This only works once the site is live on a real public domain — a <code>localhost</code> link can't generate a preview because external services like Discord have no way to reach your own computer to fetch it.</p></details>
+
+    <h3>Privacy</h3>
+    <ul>
+      <li>No account, no login, no Steam credentials — everything shown here comes from Steam's own public APIs, the same data anyone could look up about a public profile.</li>
+      <li>Every completed appraisal saves a snapshot (persona name, avatar URL, totals, timestamp) to power your own "value over time" history — private by default, tied only to the SteamID64 you looked up.</li>
+      <li>That snapshot only becomes visible to other visitors if you explicitly check "Show this appraisal on the public leaderboard" — unchecked by default, and it's per-appraisal, not a permanent account setting.</li>
+      <li>The contact form never sends anything to this server — it opens your own email client with the message pre-filled. Nothing you type there is stored here.</li>
+      <li>Steam profile data, item prices, and inventory contents are cached temporarily (30 minutes to a few hours depending on the data) purely to avoid hammering Steam's rate limits — not retained beyond that window.</li>
+      <li>Basic usage analytics are logged (page loads, appraisals started, share-link views) so the site owner can tell whether it's being used — no cookies, no per-visitor identifier, no IP address stored. Just event counts with the page and referrer.</li>
+      <li>This site may show ads served by Google AdSense. If enabled, Google may set cookies to measure and personalize ads — see <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener noreferrer">Google's own ad policy</a> for what that involves. Visitors in the UK/EEA are shown a consent choice before any personalized ad cookies are set.</li>
+    </ul>
 
     <h3>Still have a question?</h3>
     <p class="placeholder-warn" id="contactPlaceholderWarn">⚠ Site owner: replace <code>CONTACT_EMAIL</code> in index.html with your real address before launch — messages currently go to a placeholder.</p>
@@ -947,13 +995,18 @@ function renderInventory() {
         it.marketable ? "no current listings" :
         it.hold ? "trade-held — not yet marketable" : "not marketable"));
     }
-    if (it.priced && it.sellLink) {
-      const a = document.createElement("a");
-      a.className = "selllink"; a.href = it.sellLink; a.target = "_blank"; a.rel = "noopener noreferrer";
-      a.textContent = it.priceSource === "steam" ? "Steam Market ↗" : "Sell on Skinport ↗";
-      prices.appendChild(a);
-    }
     bodyEl.appendChild(prices);
+    if (it.priced && it.sellLinks && it.sellLinks.length) {
+      const row = el("div", "selllinks");
+      for (const link of it.sellLinks) {
+        const a = document.createElement("a");
+        a.className = "selllink" + (link.best ? " best" : ""); a.href = link.url; a.target = "_blank"; a.rel = "noopener noreferrer";
+        a.textContent = (link.best ? "★ " : "") + link.platform + " ↗";
+        if (link.best) a.title = "Lowest known seller fee among the linked marketplaces";
+        row.appendChild(a);
+      }
+      bodyEl.appendChild(row);
+    }
     card.appendChild(bodyEl);
     grid.appendChild(card);
   }
@@ -1519,6 +1572,16 @@ function detectRegion(validCodes) {
   }
   return null;
 }
+
+// Fire-and-forget pageview beacon — no cookie, no visitor identifier, just
+// "this path got loaded, from this referrer." See the Privacy section for
+// why: this app deliberately doesn't track individuals, so there's nothing
+// here needing a consent banner.
+fetch("/api/track", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ path: location.pathname, referrer: document.referrer || null }),
+}).catch(() => {});
 
 /* boot: rates + key check + leaderboard */
 (async () => {

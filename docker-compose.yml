@@ -26,14 +26,17 @@ services:
 
   # Not a long-running service — invoked manually once DNS points at this
   # server (see the deploy notes). Shares the same volumes as nginx so the
-  # cert it obtains is immediately where nginx expects to find it.
+  # cert it obtains is immediately where nginx expects to find it. No custom
+  # entrypoint here deliberately — the certbot/certbot image's own entrypoint
+  # IS the certbot binary, so `docker compose run certbot certonly ...`
+  # passes "certonly ..." straight to it. A bare `docker compose up` starting
+  # this with no args just prints certbot's usage and exits — harmless.
   certbot:
     image: certbot/certbot
     container_name: vaultmark-certbot
     volumes:
       - certbot-webroot:/var/www/certbot
       - certbot-certs:/etc/letsencrypt
-    entrypoint: "true"   # no-op by default; run with `docker compose run` to actually issue/renew
 
 volumes:
   vaultmark-data:

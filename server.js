@@ -74,6 +74,15 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_snapshots_steamid ON snapshots(steamid64, created_at);
   CREATE INDEX IF NOT EXISTS idx_snapshots_public ON snapshots(public, total);
+  CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type       TEXT NOT NULL,   -- 'pageview' | 'appraisal' | 'share_view'
+    path       TEXT,
+    referrer   TEXT,
+    steamid64  TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_events_type_time ON events(type, created_at);
 `);
 
 const cache = new Map();
@@ -138,6 +147,18 @@ function cacheSet(key, val, ttlMs) {
 function cacheAge(key) {
   const hit = cache.get(key);
   return hit ? Date.now() - hit.at : null;
+}
+
+// Deliberately not tracking anything that would need a cookie-consent banner:
+// no cookies, no IP storage, no cross-request identifier. Just event counts
+// (pageview / appraisal / share_view) with path, referrer, and — for
+// appraisals — the steamid64 being looked up, so "most appraised profiles"
+// is answerable. Enough to know whether the site is being used at all.
+const insertEvent = db.prepare(
+  "INSERT INTO events (type, path, referrer, steamid64, created_at) VALUES (?, ?, ?, ?, ?)"
+);
+function logEvent(type, { path = null, referrer = null, steamid64 = null } = {}) {
+  try { insertEvent.run(type, path, referrer, steamid64, Date.now()); } catch { /* analytics must never break the app */ }
 }
 
 const TTL = {
@@ -544,6 +565,44 @@ async function fetchInventoryPages(steamid64, appid) {
   return { status: "ok", count: assets.length, stacks: [...stacks.values()] };
 }
 
+// DMarket's search works from a plain URL — no login wall, unlike CSFloat
+// (verified: their search UI rejects unauthenticated queries entirely) — but
+// only if the wear condition is stripped from the query first. Confirmed by
+// testing directly: "AK-47 | Redline" returns real results, "AK-47 | Redline
+// (Field-Tested)" silently returns nothing and falls back to the generic
+// browse page. DMarket doesn't cover Community items (753). Skipped for
+// ★/StatTrak™-prefixed names (knives, StatTrak weapons) — tested one of
+// those and the result page was ambiguous (plausible prices mixed with
+// generic "Recommended for you" filler, not clearly a filtered match) —
+// a wrong link is worse than no link, so those fall back to Skinport/Steam
+// Market only, which already price them correctly.
+const DMARKET_SLUGS = { 730: "csgo-skins", 570: "dota2-skins", 440: "tf2-skins", 252490: "rust-skins" };
+const WEAR_SUFFIX_RE = / \((?:Factory New|Minimal Wear|Field-Tested|Well-Worn|Battle-Scarred)\)$/;
+const DMARKET_UNSAFE_PREFIX_RE = /^(★|StatTrak™)/;
+
+// Known seller fee ceilings, verified this session (not assumed): DMarket's
+// own site states 1-5%; Skinport publishes 8% standard / 6% above $1000;
+// Steam Market is a fixed 15% (5% Steam + 10% game publisher). Used only to
+// rank which link is flagged "best" — the actual per-item cash-out estimate
+// elsewhere in this file uses the precise Skinport/Steam rates, not this
+// range. DMarket's real price isn't available (no API key), so it can't be
+// included in that precise calculation — only in this fee-based ranking.
+const PLATFORM_FEE_CEILING = { DMarket: 0.05, Skinport: 0.08, "Steam Market": 0.15 };
+
+function buildSellLinks(appid, name, skinportLink) {
+  const links = [];
+  if (skinportLink) links.push({ platform: "Skinport", url: skinportLink });
+  links.push({ platform: "Steam Market", url: `https://steamcommunity.com/market/listings/${appid}/${encodeURIComponent(name)}` });
+  const slug = DMARKET_SLUGS[appid];
+  if (slug && !DMARKET_UNSAFE_PREFIX_RE.test(name)) {
+    const baseName = name.replace(WEAR_SUFFIX_RE, "");
+    links.push({ platform: "DMarket", url: `https://dmarket.com/ingame-items/item-list/${slug}?title=${encodeURIComponent(baseName)}` });
+  }
+  links.sort((a, b) => PLATFORM_FEE_CEILING[a.platform] - PLATFORM_FEE_CEILING[b.platform]);
+  if (links.length) links[0].best = true;
+  return links;
+}
+
 async function fetchInventory(steamid64, appid) {
   const key = `inv:${steamid64}:${appid}`;
   let raw = cacheGet(key);
@@ -558,7 +617,7 @@ async function fetchInventory(steamid64, appid) {
   const skinport = appid === 753 ? null : await skinportPrices(appid); // Skinport doesn't carry 753
   const pending = [];
   const items = raw.stacks.map((s) => {
-    const it = { ...s, priceMarket: 0, priceSuggested: 0, priced: false, priceSource: null, sellLink: null, liquidity: null };
+    const it = { ...s, priceMarket: 0, priceSuggested: 0, priced: false, priceSource: null, sellLinks: [], liquidity: null };
     const sp = skinport?.[s.name];
     const po = sp ? undefined : cacheGet(`po:${appid}:${s.name}`);
     if (sp) {
@@ -566,7 +625,7 @@ async function fetchInventory(steamid64, appid) {
       it.priceSuggested = sp.suggested;
       it.priced = true;
       it.priceSource = "skinport";
-      it.sellLink = sp.link;
+      it.sellLinks = buildSellLinks(appid, s.name, sp.link);
       it.liquidity = classifyLiquidity(sp.listings, LIQUIDITY_THRESHOLDS.skinportListings, "listed on Skinport");
     } else if (po !== undefined) {
       it.priceMarket = po.market || po.suggested;
@@ -574,7 +633,7 @@ async function fetchInventory(steamid64, appid) {
       it.priced = it.priceMarket > 0;
       if (it.priced) {
         it.priceSource = "steam";
-        it.sellLink = `https://steamcommunity.com/market/listings/${appid}/${encodeURIComponent(s.name)}`;
+        it.sellLinks = buildSellLinks(appid, s.name, null);
         it.liquidity = classifyLiquidity(po.volume, LIQUIDITY_THRESHOLDS.steamVolume24h, "sold/day on Steam");
       }
     } else if (s.marketable) {
@@ -741,13 +800,24 @@ app.get("/api/health", (req, res) => {
   res.json({ ok: true, keyConfigured: !!STEAM_KEY, cacheEntries: cache.size });
 });
 
+app.post("/api/track", (req, res) => {
+  const p = typeof req.body?.path === "string" ? req.body.path.slice(0, 200) : null;
+  const ref = typeof req.body?.referrer === "string" ? req.body.referrer.slice(0, 300) : null;
+  logEvent("pageview", { path: p, referrer: ref || null });
+  res.status(204).end();
+});
+
 app.get("/api/resolve", async (req, res) => {
   const parsed = parseSteamInput(req.query.input);
   if (!parsed || parsed.type === "invalid") return res.status(400).json({ error: "unparseable_input" });
-  if (parsed.steamid64) return res.json({ steamid64: parsed.steamid64, via: parsed.type });
+  if (parsed.steamid64) {
+    logEvent("appraisal", { steamid64: parsed.steamid64 });
+    return res.json({ steamid64: parsed.steamid64, via: parsed.type });
+  }
   if (needKey(res)) return;
   const r = await resolveVanity(parsed.vanity);
   if (r.error) return res.status(r.error === "vanity_not_found" ? 404 : 502).json(r);
+  logEvent("appraisal", { steamid64: r.steamid64 });
   res.json({ steamid64: r.steamid64, via: "vanity" });
 });
 
@@ -1010,6 +1080,7 @@ app.get("/api/og/:id.png", async (req, res) => {
 app.get("/share/:id", (req, res) => {
   if (!/^\d{17}$/.test(req.params.id)) return res.redirect("/");
   const appUrl = `/?q=${req.params.id}`;
+  logEvent("share_view", { path: "/share/" + req.params.id, referrer: req.get("referer") || null, steamid64: req.params.id });
   const snap = db.prepare(
     "SELECT * FROM snapshots WHERE steamid64 = ? ORDER BY created_at DESC LIMIT 1"
   ).get(req.params.id);
@@ -1042,6 +1113,79 @@ app.get("/share/:id", (req, res) => {
 <script>location.replace(${JSON.stringify(appUrl)});</script>
 </head><body>
 <p>Redirecting to <a href="${appUrl}">the appraisal</a>…</p>
+</body></html>`);
+});
+
+/* ------------------------- Stats dashboard (owner-only) ------------------------- */
+/* Gated by ADMIN_KEY (set it in .env) rather than any login system — this
+   app has no accounts at all, and adding one just to view traffic would be
+   a lot of new surface area for one page. Returns a plain 404 (not 403) on
+   a wrong/missing key so the route's existence isn't even confirmable. */
+
+const ADMIN_KEY = process.env.ADMIN_KEY || "";
+
+function countSince(type, ms) {
+  return db.prepare("SELECT COUNT(*) as n FROM events WHERE type = ? AND created_at > ?").get(type, Date.now() - ms).n;
+}
+
+app.get("/api/stats", (req, res) => {
+  if (!ADMIN_KEY || req.query.key !== ADMIN_KEY) return res.status(404).send("Not found");
+
+  const DAY = 24 * 3600e3;
+  const windows = { "24h": DAY, "7d": 7 * DAY, "30d": 30 * DAY };
+  const summary = {};
+  for (const type of ["pageview", "appraisal", "share_view"]) {
+    summary[type] = {};
+    for (const [label, ms] of Object.entries(windows)) summary[type][label] = countSince(type, ms);
+  }
+
+  const topReferrers = db.prepare(`
+    SELECT COALESCE(NULLIF(referrer, ''), '(direct)') as ref, COUNT(*) as n
+    FROM events WHERE type = 'pageview' AND created_at > ?
+    GROUP BY ref ORDER BY n DESC LIMIT 10
+  `).all(Date.now() - 30 * DAY);
+
+  const mostAppraised = db.prepare(`
+    SELECT e.steamid64, MAX(s.persona) as persona, COUNT(*) as n
+    FROM events e LEFT JOIN snapshots s ON s.steamid64 = e.steamid64
+    WHERE e.type = 'appraisal' AND e.created_at > ?
+    GROUP BY e.steamid64 ORDER BY n DESC LIMIT 10
+  `).all(Date.now() - 30 * DAY);
+
+  const recent = db.prepare(`SELECT type, path, referrer, steamid64, created_at FROM events ORDER BY created_at DESC LIMIT 30`).all();
+
+  const row = (label, d) => `<tr><td>${label}</td><td class="mono">${d["24h"]}</td><td class="mono">${d["7d"]}</td><td class="mono">${d["30d"]}</td></tr>`;
+
+  res.set("Content-Type", "text/html");
+  res.send(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>VAULTMARK — stats</title>
+<style>
+body{background:#0B0F15;color:#E7EDF5;font-family:system-ui,sans-serif;padding:32px;max-width:960px;margin:0 auto}
+h1{font-size:20px}h2{font-size:14px;color:#8894A8;text-transform:uppercase;letter-spacing:.06em;margin-top:32px}
+table{width:100%;border-collapse:collapse;margin-top:8px}
+th,td{text-align:left;padding:6px 10px;border-bottom:1px solid #212B3C;font-size:13px}
+th{color:#5B6779;font-weight:500}
+.mono{font-family:ui-monospace,monospace}
+</style></head><body>
+<h1>VAULTMARK — usage stats</h1>
+<h2>Events</h2>
+<table><tr><th></th><th>24h</th><th>7d</th><th>30d</th></tr>
+${row("Pageviews", summary.pageview)}
+${row("Appraisals started", summary.appraisal)}
+${row("Share link views", summary.share_view)}
+</table>
+<h2>Top referrers (30d)</h2>
+<table><tr><th>Referrer</th><th>Views</th></tr>
+${topReferrers.map((r) => `<tr><td>${escXml(r.ref)}</td><td class="mono">${r.n}</td></tr>`).join("")}
+</table>
+<h2>Most appraised profiles (30d)</h2>
+<table><tr><th>SteamID64</th><th>Persona</th><th>Times</th></tr>
+${mostAppraised.map((r) => `<tr><td class="mono">${r.steamid64}</td><td>${escXml(r.persona || "—")}</td><td class="mono">${r.n}</td></tr>`).join("")}
+</table>
+<h2>Recent activity</h2>
+<table><tr><th>Type</th><th>Path/SteamID</th><th>Referrer</th><th>When</th></tr>
+${recent.map((r) => `<tr><td>${r.type}</td><td class="mono">${escXml(r.path || r.steamid64 || "")}</td><td>${escXml(r.referrer || "")}</td><td>${new Date(r.created_at).toLocaleString()}</td></tr>`).join("")}
+</table>
 </body></html>`);
 });
 
