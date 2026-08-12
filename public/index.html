@@ -325,15 +325,7 @@ select { background:var(--panel2); color:var(--text); border:1px solid var(--lin
     <details class="faqitem"><summary>How do I share my appraisal so it shows a preview card on Discord/Twitter?</summary><p>Use the <b>"Copy link"</b> button in the Share Card section — it copies a <code>/share/&lt;steamid&gt;</code> link, not the plain site URL. That specific link is what carries the image/title data Discord and Twitter read to build a preview card; the regular homepage link won't show one. This only works once the site is live on a real public domain — a <code>localhost</code> link can't generate a preview because external services like Discord have no way to reach your own computer to fetch it.</p></details>
 
     <h3>Privacy</h3>
-    <ul>
-      <li>No account, no login, no Steam credentials — everything shown here comes from Steam's own public APIs, the same data anyone could look up about a public profile.</li>
-      <li>Every completed appraisal saves a snapshot (persona name, avatar URL, totals, timestamp) to power your own "value over time" history — private by default, tied only to the SteamID64 you looked up.</li>
-      <li>That snapshot only becomes visible to other visitors if you explicitly check "Show this appraisal on the public leaderboard" — unchecked by default, and it's per-appraisal, not a permanent account setting.</li>
-      <li>The contact form never sends anything to this server — it opens your own email client with the message pre-filled. Nothing you type there is stored here.</li>
-      <li>Steam profile data, item prices, and inventory contents are cached temporarily (30 minutes to a few hours depending on the data) purely to avoid hammering Steam's rate limits — not retained beyond that window.</li>
-      <li>Basic usage analytics are logged (page loads, appraisals started, share-link views) so the site owner can tell whether it's being used — no cookies, no per-visitor identifier, no IP address stored. Just event counts with the page and referrer.</li>
-      <li>This site may show ads served by Google AdSense. If enabled, Google may set cookies to measure and personalize ads — see <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener noreferrer">Google's own ad policy</a> for what that involves. Visitors in the UK/EEA are shown a consent choice before any personalized ad cookies are set.</li>
-    </ul>
+    <p style="color:var(--mut); font-size:13.5px">No account, no login, no Steam credentials, no cookies, no per-visitor tracking — see the full <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a> for exactly what's stored and how ads/analytics work on this site.</p>
 
     <h3>Still have a question?</h3>
     <p class="placeholder-warn" id="contactPlaceholderWarn">⚠ Site owner: replace <code>CONTACT_EMAIL</code> in index.html with your real address before launch — messages currently go to a placeholder.</p>
@@ -459,7 +451,7 @@ select { background:var(--panel2); color:var(--text); border:1px solid var(--lin
   </section>
 </main>
 
-<footer class="foot">prices: skinport → steam market fallback (items) · steam store (games) · fx: open.er-api.com · inventories cached 30 min server-side</footer>
+<footer class="foot">prices: skinport → steam market fallback (items) · steam store (games) · fx: open.er-api.com · inventories cached 30 min server-side · <a href="/privacy" style="color:inherit">Privacy Policy</a></footer>
 
 <script src="/vendor/jspdf.umd.min.js"></script>
 <script src="/vendor/jspdf.plugin.autotable.min.js"></script>

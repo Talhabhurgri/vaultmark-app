@@ -1116,6 +1116,55 @@ app.get("/share/:id", (req, res) => {
 </body></html>`);
 });
 
+/* ------------------------- Privacy policy (standalone page) ------------------------- */
+/* AdSense's review process specifically looks for a clearly linkable privacy
+   policy page — a section buried inside a collapsible FAQ panel isn't
+   reliably enough. This is the same content, just given its own real URL
+   and linked from the footer, which is where reviewers actually look. */
+
+app.get("/privacy", (req, res) => {
+  res.set("Content-Type", "text/html");
+  res.send(`<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — VAULTMARK</title>
+<meta name="description" content="VAULTMARK privacy policy — what data is collected, what isn't, and how analytics and ads work on this site.">
+<link rel="canonical" href="https://vaultmark.tech/privacy">
+<style>
+body{background:#0B0F15;color:#E7EDF5;font-family:system-ui,-apple-system,sans-serif;line-height:1.6;max-width:720px;margin:0 auto;padding:48px 24px}
+h1{font-size:24px}h2{font-size:15px;color:#8894A8;text-transform:uppercase;letter-spacing:.06em;margin-top:32px}
+a{color:#63B0E3}li{margin:8px 0;color:#C6CFDC}
+.back{display:inline-block;margin-top:32px;color:#5B6779;font-size:13px}
+</style></head><body>
+<h1>Privacy Policy</h1>
+<p style="color:#8894A8">Last updated ${new Date().toISOString().slice(0, 10)}</p>
+
+<h2>What this site does</h2>
+<p style="color:#C6CFDC">VAULTMARK appraises public Steam profiles — game library and item inventory value — using Steam's own public APIs and third-party market prices (Skinport, Steam Community Market). No login, no Steam credentials, ever.</p>
+
+<h2>What's collected</h2>
+<ul>
+<li>No account, no login, no Steam credentials — everything shown comes from Steam's own public APIs, the same data anyone could look up about a public profile.</li>
+<li>Every completed appraisal saves a snapshot (persona name, avatar URL, totals, timestamp) to power "value over time" history — private by default, tied only to the SteamID64 looked up.</li>
+<li>That snapshot only becomes visible to other visitors if the person explicitly opts into the public leaderboard — unchecked by default, per-appraisal, not a permanent setting.</li>
+<li>The contact form never sends anything to this server — it opens your own email client with the message pre-filled.</li>
+<li>Steam profile data, item prices, and inventory contents are cached temporarily (30 minutes to a few hours) purely to avoid hammering Steam's rate limits.</li>
+</ul>
+
+<h2>Analytics</h2>
+<p style="color:#C6CFDC">Basic usage analytics are logged — page loads, appraisals started, share-link views — with no cookies, no per-visitor identifier, and no IP address stored. Just event counts with the page and referrer, visible only to the site owner.</p>
+
+<h2>Advertising</h2>
+<p style="color:#C6CFDC">This site may show ads served by Google AdSense. If enabled, Google may set cookies to measure and personalize ads — see <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener noreferrer">Google's ad policy</a> for details. Visitors in the UK/EEA are shown a consent choice before any personalized ad cookies are set.</p>
+
+<h2>Contact</h2>
+<p style="color:#C6CFDC">Questions, feedback, or a leaderboard removal request — use the contact form linked from the <a href="/">homepage</a>.</p>
+
+<a class="back" href="/">← Back to VAULTMARK</a>
+</body></html>`);
+});
+
 /* ------------------------- Stats dashboard (owner-only) ------------------------- */
 /* Gated by ADMIN_KEY (set it in .env) rather than any login system — this
    app has no accounts at all, and adding one just to view traffic would be
